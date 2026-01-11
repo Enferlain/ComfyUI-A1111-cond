@@ -16,7 +16,7 @@ Step vs Percentage:
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict
 
 # Try to import lark, fall back to simple parsing if not available
 try:
@@ -38,6 +38,10 @@ class WeightedPart:
     is_alternating: bool = False
     alternating_options: List[str] = field(default_factory=list)
 
+    def __str__(self) -> str:
+        """Return the text content for string conversion."""
+        return self.text
+
 
 # A1111-style Lark grammar
 GRAMMAR = r"""
@@ -49,7 +53,7 @@ prompt: (emphasized | scheduled | alternate | plain | WHITESPACE)*
 scheduled: "[" [prompt ":"] prompt ":" [WHITESPACE] NUMBER [WHITESPACE] "]"
 alternate: "[" prompt ("|" [prompt])+ "]"
 WHITESPACE: /\s+/
-plain: /([^\\\[\]():|]|\\.)+/
+plain: /([^\\\\[\]():|]|\\.)+/
 %import common.SIGNED_NUMBER -> NUMBER
 """
 
@@ -75,6 +79,180 @@ def parse_a1111_prompt(
         return [_parse_chunk_lark(chunk, steps) for chunk in break_chunks]
     else:
         return [_parse_chunk_simple(chunk, steps) for chunk in break_chunks]
+
+
+def get_prompt_schedule(prompt: str, steps: int) -> List[Tuple[int, str]]:
+    """
+    A1111-style prompt schedule generation.
+
+    Returns list of (end_at_step, prompt_text) tuples representing
+    when each prompt variant should be used.
+
+    This properly handles nested alternation and scheduling.
+    """
+    if not HAS_LARK:
+        # Fallback for simple prompts
+        return [(steps, prompt)]
+
+    # Split by BREAK first, process each chunk, then rejoin
+    break_chunks = re.split(r"\s*\bBREAK\b\s*", prompt)
+
+    try:
+        parser = lark.Lark(GRAMMAR)
+        trees = [parser.parse(chunk) for chunk in break_chunks]
+    except lark.exceptions.LarkError:
+        return [(steps, prompt)]
+
+    # Collect all relevant steps from all chunks
+    all_steps = _collect_steps(steps, trees)
+
+    # Generate prompt text for each step
+    schedule = []
+    for step in all_steps:
+        chunk_texts = []
+        for tree in trees:
+            text = _at_step(step, steps, tree)
+            if text.strip():
+                chunk_texts.append(text)
+        full_prompt = " BREAK ".join(chunk_texts)
+        schedule.append((step, full_prompt))
+
+    return schedule
+
+
+def _collect_steps(steps: int, trees) -> List[int]:
+    """Collect all steps where the prompt changes."""
+    result = {steps}  # Always include final step
+
+    class CollectSteps(lark.Visitor):
+        def scheduled(self, tree):
+            s = str(tree.children[-2])
+            v = float(s)
+            if "." in s:
+                # Percentage
+                step_num = int(v * steps)
+            else:
+                # Step count
+                step_num = int(v)
+            step_num = max(1, min(steps, step_num))
+            if step_num >= 1:
+                result.add(step_num)
+
+        def alternate(self, tree):
+            # Alternation changes every step
+            result.update(range(1, steps + 1))
+
+    for tree in trees:
+        CollectSteps().visit(tree)
+
+    return sorted(result)
+
+
+def _at_step(step: int, total_steps: int, tree) -> str:
+    """
+    Generate the prompt text for a specific step.
+
+    This follows A1111's approach of walking the tree and picking
+    the correct option at each node based on the current step.
+    """
+
+    class AtStep(lark.Transformer):
+        def scheduled(self, args):
+            # A1111 pattern: before, after, _, when, _ = args
+            # Use positional access like A1111
+            before = args[0] if len(args) > 0 else None
+            after = args[1] if len(args) > 1 else None
+            when_token = args[3] if len(args) > 3 else None
+
+            # Fallback: find NUMBER token if not at expected position
+            if when_token is None or not (
+                isinstance(when_token, lark.Token) and when_token.type == "NUMBER"
+            ):
+                for arg in args:
+                    if isinstance(arg, lark.Token) and arg.type == "NUMBER":
+                        when_token = arg
+                        break
+
+            if when_token is None:
+                for a in args:
+                    if a is not None:
+                        yield a
+                return
+
+            when_str = str(when_token)
+            if "." in when_str:
+                when_step = int(float(when_str) * total_steps)
+            else:
+                when_step = int(float(when_str))
+
+            # A1111: yield before if step <= when, else yield after
+            if step <= when_step:
+                if before is not None:
+                    yield before
+            else:
+                if after is not None:
+                    yield after
+
+        def alternate(self, args):
+            # Filter out empty/None
+            options = [a for a in args if a]
+            if not options:
+                yield ""
+                return
+            idx = (step - 1) % len(options)
+            yield options[idx]
+
+        def emphasized(self, args):
+            # Keep emphasis syntax in output
+            if len(args) == 1:
+                for a in args:
+                    yield a
+            elif len(args) >= 2:
+                # (text:weight) - preserve weight
+                yield "("
+                yield from self._flatten_arg(args[0])
+                yield ":"
+                yield from self._flatten_arg(args[1])
+                yield ")"
+            else:
+                for a in args:
+                    yield a
+
+        def _flatten_arg(self, arg):
+            if isinstance(arg, str):
+                yield arg
+            elif isinstance(arg, lark.Token):
+                yield str(arg)
+            elif hasattr(arg, "__iter__"):
+                for item in arg:
+                    yield from self._flatten_arg(item)
+            elif arg is not None:
+                yield str(arg)
+
+        def plain(self, args):
+            yield args[0].value if args else ""
+
+        def start(self, args):
+            def flatten(x):
+                if isinstance(x, str):
+                    yield x
+                elif isinstance(x, lark.Token):
+                    yield str(x)
+                elif x is None or x == ():
+                    pass
+                elif hasattr(x, "__iter__"):
+                    for item in x:
+                        yield from flatten(item)
+                else:
+                    yield str(x)
+
+            return "".join(flatten(args))
+
+        def __default__(self, data, children, meta):
+            for child in children:
+                yield child
+
+    return AtStep().transform(tree)
 
 
 def _parse_chunk_lark(chunk: str, steps: Optional[int]) -> List[WeightedPart]:
@@ -110,6 +288,23 @@ def _convert_when_to_percent(when_str: str, steps: Optional[int]) -> float:
             return val
 
 
+def _extract_text(item) -> str:
+    """Recursively extract text from WeightedPart or nested structures."""
+    if isinstance(item, WeightedPart):
+        if item.is_alternating and item.alternating_options:
+            # For alternating, return options joined (will be handled per-step elsewhere)
+            return "|".join(item.alternating_options)
+        return item.text
+    elif isinstance(item, list):
+        return "".join(_extract_text(x) for x in item)
+    elif HAS_LARK and isinstance(item, lark.Token):
+        return str(item)
+    elif item is None:
+        return ""
+    else:
+        return str(item)
+
+
 def _extract_parts_from_tree(tree, steps: Optional[int]) -> List[WeightedPart]:
     """Extract WeightedParts from parsed Lark tree."""
     parts = []
@@ -126,24 +321,24 @@ def _extract_parts_from_tree(tree, steps: Optional[int]) -> List[WeightedPart]:
                 if isinstance(inner, WeightedPart):
                     inner.weight *= 1.1
                     return inner
-                return WeightedPart(text=str(inner), weight=1.1)
+                return WeightedPart(text=_extract_text(inner), weight=1.1)
             elif len(args) == 2:
                 # (text:weight)
                 inner, weight_part = args
                 try:
-                    w = float(str(weight_part))
+                    w = float(_extract_text(weight_part))
                 except:
                     w = 1.0
                 if isinstance(inner, WeightedPart):
                     inner.weight *= w
                     return inner
-                return WeightedPart(text=str(inner), weight=w)
+                return WeightedPart(text=_extract_text(inner), weight=w)
             return args[0] if args else WeightedPart(text="")
 
         def scheduled(self, args):
             # [before:after:when] or [:after:when] or [before::when]
             # args structure varies
-            when_str = str(args[-2]) if len(args) >= 2 else "0.5"
+            when_str = _extract_text(args[-2]) if len(args) >= 2 else "0.5"
             when_pct = _convert_when_to_percent(when_str, steps)
 
             if len(args) >= 3:
@@ -158,19 +353,23 @@ def _extract_parts_from_tree(tree, steps: Optional[int]) -> List[WeightedPart]:
             if before:
                 result.append(
                     WeightedPart(
-                        text=str(before), start_percent=0.0, end_percent=when_pct
+                        text=_extract_text(before),
+                        start_percent=0.0,
+                        end_percent=when_pct,
                     )
                 )
             if after:
                 result.append(
                     WeightedPart(
-                        text=str(after), start_percent=when_pct, end_percent=1.0
+                        text=_extract_text(after),
+                        start_percent=when_pct,
+                        end_percent=1.0,
                     )
                 )
             return result
 
         def alternate(self, args):
-            options = [str(a) if a else "" for a in args]
+            options = [_extract_text(a) if a else "" for a in args]
             return WeightedPart(
                 text="", is_alternating=True, alternating_options=options
             )
@@ -211,7 +410,7 @@ re_alternation = re.compile(r"^\[([^|\]]+(?:\|[^|\]]+)+)\]$")
 
 re_attention = re.compile(
     r"""
-\\\(|
+\\\\|
 \\\)|
 \\\[|
 \\]|

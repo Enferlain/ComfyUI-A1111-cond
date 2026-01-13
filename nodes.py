@@ -279,6 +279,10 @@ class A1111PromptNode:
     def _apply_direct_scaling(self, cond, weights, normalization):
         """Apply A1111-style direct scaling to embeddings."""
         cond = cond.clone()
+
+        if normalization:
+            mean_before = cond.mean()
+
         for batch_idx, batch_weights in enumerate(weights):
             if batch_idx >= cond.shape[0]:
                 break
@@ -286,16 +290,13 @@ class A1111PromptNode:
                 if token_idx >= cond.shape[1]:
                     break
                 if weight != 1.0:
-                    if normalization:
-                        # EmphasisOriginal - normalize mean after scaling
-                        mean_before = cond[batch_idx, token_idx].mean()
-                        cond[batch_idx, token_idx] *= weight
-                        mean_after = cond[batch_idx, token_idx].mean()
-                        if mean_after != 0:
-                            cond[batch_idx, token_idx] *= mean_before / mean_after
-                    else:
-                        # EmphasisOriginalNoNorm - just scale
-                        cond[batch_idx, token_idx] *= weight
+                    cond[batch_idx, token_idx] *= weight
+
+        if normalization:
+            mean_after = cond.mean()
+            if mean_after != 0:
+                cond *= mean_before / mean_after
+
         return cond
 
     def _apply_direct_scaling_sdxl(self, cond, weights_l, weights_g, normalization):

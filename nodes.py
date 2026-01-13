@@ -295,7 +295,7 @@ class A1111PromptNode:
 
         if normalization:
             mean_after = cond.mean()
-            if mean_after != 0:
+            if mean_after.abs() > 1e-8:
                 cond *= mean_before / mean_after
 
         return cond

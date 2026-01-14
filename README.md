@@ -91,7 +91,6 @@ A1111 reconstructs conditioning per-step using discrete step numbers. ComfyUI us
 ### Other Limitations
 
 - **Token Counter**: Display pending frontend integration
-- **Without Lark**: Nested syntax won't parse; falls back to simple regex
 
 ---
 

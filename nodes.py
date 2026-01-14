@@ -221,10 +221,9 @@ class A1111PromptNode:
         if is_sdxl:
             weights_l = self._extract_weights(tokens.get("l", []))
             weights_g = self._extract_weights(tokens.get("g", []))
-            tokens_neutral = {
-                "l": self._neutralize_weights(tokens.get("l", [])),
-                "g": self._neutralize_weights(tokens.get("g", [])),
-            }
+            tokens_neutral = tokens.copy()
+            tokens_neutral["l"] = self._neutralize_weights(tokens.get("l", []))
+            tokens_neutral["g"] = self._neutralize_weights(tokens.get("g", []))
         else:
             weights = self._extract_weights(
                 tokens.get("l", tokens) if isinstance(tokens, dict) else tokens
@@ -233,7 +232,9 @@ class A1111PromptNode:
                 tokens.get("l", tokens) if isinstance(tokens, dict) else tokens
             )
             if isinstance(tokens, dict):
-                tokens_neutral = {"l": tokens_neutral}
+                tokens_neutral_dict = tokens.copy()
+                tokens_neutral_dict["l"] = tokens_neutral
+                tokens_neutral = tokens_neutral_dict
 
         o = clip.cond_stage_model.encode_token_weights(tokens_neutral)
         cond, pooled = o[:2]
@@ -278,6 +279,10 @@ class A1111PromptNode:
     def _apply_direct_scaling(self, cond, weights, normalization):
         """Apply A1111-style direct scaling to embeddings."""
         cond = cond.clone()
+
+        if normalization:
+            mean_before = cond.mean()
+
         for batch_idx, batch_weights in enumerate(weights):
             if batch_idx >= cond.shape[0]:
                 break
@@ -285,20 +290,25 @@ class A1111PromptNode:
                 if token_idx >= cond.shape[1]:
                     break
                 if weight != 1.0:
-                    if normalization:
-                        # EmphasisOriginal - normalize mean after scaling
-                        mean_before = cond[batch_idx, token_idx].mean()
-                        cond[batch_idx, token_idx] *= weight
-                        mean_after = cond[batch_idx, token_idx].mean()
-                        if mean_after != 0:
-                            cond[batch_idx, token_idx] *= mean_before / mean_after
-                    else:
-                        # EmphasisOriginalNoNorm - just scale
-                        cond[batch_idx, token_idx] *= weight
+                    cond[batch_idx, token_idx] *= weight
+
+        if normalization:
+            mean_after = cond.mean()
+            if mean_after.abs() > 1e-8:
+                cond *= mean_before / mean_after
+
         return cond
 
     def _apply_direct_scaling_sdxl(self, cond, weights_l, weights_g, normalization):
         """SDXL output is [batch, seq, 2048] where 2048 = 768 (L) + 1280 (G)."""
+        if cond.shape[-1] != 2048:
+            # Fallback for non-SDXL models (e.g. SD3) that might trigger is_sdxl check
+            logger.warning(f"[God Node] Unexpected embedding dimension {cond.shape[-1]} (expected 2048 for SDXL). Applying symmetric scaling.")
+            # We don't know where the split is, so we just apply weights_g (usually the main one) or weights_l?
+            # Or effectively average them?
+            # Safest fallback: use 'g' weights if available, as that's usually the primary semantic encoder in ComfyUI flows
+            return self._apply_direct_scaling(cond, weights_g if weights_g else weights_l, normalization)
+
         cond = cond.clone()
         dim_l = 768
         cond_l = cond[:, :, :dim_l]

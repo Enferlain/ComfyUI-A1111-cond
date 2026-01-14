@@ -1,4 +1,4 @@
-# A1111 Prompt Node (God Node)
+# A1111 Prompt Node
 
 A custom ComfyUI node that implements A1111-style prompt handling with proper isolation and emphasis math.
 

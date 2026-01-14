@@ -40,6 +40,10 @@ class A1111PromptNode:
                     "BOOLEAN",
                     {"default": False, "label_on": "Enable", "label_off": "Disable"},
                 ),
+                "debug": (
+                    "BOOLEAN",
+                    {"default": False, "label_on": "Enable", "label_off": "Disable"},
+                ),
             },
         }
 
@@ -48,7 +52,7 @@ class A1111PromptNode:
     FUNCTION = "encode"
     CATEGORY = "conditioning/advanced"
 
-    def encode(self, clip, text, steps=20, normalization=False):
+    def encode(self, clip, text, steps=20, normalization=False, debug=False):
         """
         Main encode function - A1111 style with step-based scheduling.
 
@@ -64,37 +68,51 @@ class A1111PromptNode:
             clip.cond_stage_model, "clip_g"
         )
 
-        logger.info(f"[God Node] ========== DEBUG START ==========")
-        logger.info(
-            f"[God Node] Input text: {text[:100]}..."
-            if len(text) > 100
-            else f"[God Node] Input text: {text}"
-        )
-        logger.info(f"[God Node] Model: {'SDXL' if is_sdxl else 'SD1.5'}")
-        logger.info(f"[God Node] Steps: {steps}")
-        logger.info(f"[God Node] Normalization: {'ON' if normalization else 'OFF'}")
+        if debug:
+            logger.info(f"[A1111 Prompt] ========== DEBUG START ==========")
+            logger.info(
+                f"[A1111 Prompt] Input text: {text[:100]}..."
+                if len(text) > 100
+                else f"[A1111 Prompt] Input text: {text}"
+            )
+            logger.info(f"[A1111 Prompt] Model: {'SDXL' if is_sdxl else 'SD1.5'}")
+            logger.info(f"[A1111 Prompt] Steps: {steps}")
+            logger.info(
+                f"[A1111 Prompt] Normalization: {'ON' if normalization else 'OFF'}"
+            )
 
         # Use A1111-style schedule generation
         schedule = get_prompt_schedule(text, steps)
 
-        logger.info(f"[God Node] Raw schedule ({len(schedule)} entries):")
-        for end_step, prompt_text in schedule[:10]:
-            preview = prompt_text[:60] + "..." if len(prompt_text) > 60 else prompt_text
-            logger.info(f"  Step {end_step}: '{preview}'")
+        if debug:
+            logger.info(f"[A1111 Prompt] Raw schedule ({len(schedule)} entries):")
+            for end_step, prompt_text in schedule[:10]:
+                preview = (
+                    prompt_text[:60] + "..." if len(prompt_text) > 60 else prompt_text
+                )
+                logger.info(f"  Step {end_step}: '{preview}'")
 
         # Group consecutive identical prompts
         grouped_schedule = self._group_schedule(schedule, steps)
 
-        logger.info(f"[God Node] Grouped schedule ({len(grouped_schedule)} ranges):")
-        for start_pct, end_pct, prompt_text in grouped_schedule:
-            preview = prompt_text[:60] + "..." if len(prompt_text) > 60 else prompt_text
-            logger.info(f"  {start_pct:.1%}-{end_pct:.1%}: '{preview}'")
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Grouped schedule ({len(grouped_schedule)} ranges):"
+            )
+            for start_pct, end_pct, prompt_text in grouped_schedule:
+                preview = (
+                    prompt_text[:60] + "..." if len(prompt_text) > 60 else prompt_text
+                )
+                logger.info(f"  {start_pct:.1%}-{end_pct:.1%}: '{preview}'")
 
         # Collect unique prompts
         unique_prompts = list(set(prompt for _, _, prompt in grouped_schedule))
-        logger.info(f"[God Node] Unique prompts to encode: {len(unique_prompts)}")
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Unique prompts to encode: {len(unique_prompts)}"
+            )
 
-        logger.info(f"[God Node] ========== DEBUG END ==========")
+            logger.info(f"[A1111 Prompt] ========== DEBUG END ==========")
 
         # Encode all unique prompts WITH BREAK ISOLATION
         encoded_cache = {}
@@ -104,7 +122,7 @@ class A1111PromptNode:
 
             # Handle BREAK segments with proper isolation
             cond, pooled = self._encode_with_break_isolation(
-                clip, prompt_text, normalization, is_sdxl
+                clip, prompt_text, normalization, is_sdxl, debug
             )
             encoded_cache[prompt_text] = (cond, pooled)
 
@@ -132,7 +150,9 @@ class A1111PromptNode:
 
         return (final_conditionings,)
 
-    def _encode_with_break_isolation(self, clip, prompt_text, normalization, is_sdxl):
+    def _encode_with_break_isolation(
+        self, clip, prompt_text, normalization, is_sdxl, debug
+    ):
         """
         Encode prompt with BREAK isolation.
 
@@ -142,7 +162,10 @@ class A1111PromptNode:
         # Split by BREAK
         break_segments = re.split(r"\s*\bBREAK\b\s*", prompt_text)
 
-        logger.info(f"[God Node] Encoding {len(break_segments)} BREAK segment(s)")
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Encoding {len(break_segments)} BREAK segment(s)"
+            )
 
         if len(break_segments) == 1:
             # No BREAK, encode normally
@@ -171,9 +194,10 @@ class A1111PromptNode:
                     else:
                         all_tokens[key] = segment_tokens[key]
 
-            logger.info(
-                f"  Segment {i}: '{segment[:40]}...' -> {len(segment_tokens.get('l', segment_tokens.get('g', [])))} batch(es)"
-            )
+            if debug:
+                logger.info(
+                    f"  Segment {i}: '{segment[:40]}...' -> {len(segment_tokens.get('l', segment_tokens.get('g', [])))} batch(es)"
+                )
 
         if all_tokens is None:
             # Empty prompt
@@ -303,11 +327,15 @@ class A1111PromptNode:
         """SDXL output is [batch, seq, 2048] where 2048 = 768 (L) + 1280 (G)."""
         if cond.shape[-1] != 2048:
             # Fallback for non-SDXL models (e.g. SD3) that might trigger is_sdxl check
-            logger.warning(f"[God Node] Unexpected embedding dimension {cond.shape[-1]} (expected 2048 for SDXL). Applying symmetric scaling.")
+            logger.warning(
+                f"[A1111 Prompt] Unexpected embedding dimension {cond.shape[-1]} (expected 2048 for SDXL). Applying symmetric scaling."
+            )
             # We don't know where the split is, so we just apply weights_g (usually the main one) or weights_l?
             # Or effectively average them?
             # Safest fallback: use 'g' weights if available, as that's usually the primary semantic encoder in ComfyUI flows
-            return self._apply_direct_scaling(cond, weights_g if weights_g else weights_l, normalization)
+            return self._apply_direct_scaling(
+                cond, weights_g if weights_g else weights_l, normalization
+            )
 
         cond = cond.clone()
         dim_l = 768
@@ -321,4 +349,4 @@ class A1111PromptNode:
 
 
 NODE_CLASS_MAPPINGS = {"A1111Prompt": A1111PromptNode}
-NODE_DISPLAY_NAME_MAPPINGS = {"A1111Prompt": "A1111 Style Prompt (God Node)"}
+NODE_DISPLAY_NAME_MAPPINGS = {"A1111Prompt": "A1111 Style Prompt"}

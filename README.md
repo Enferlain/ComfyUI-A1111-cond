@@ -84,13 +84,14 @@ A1111 reconstructs conditioning per-step using discrete step numbers. ComfyUI us
 
 1. **Access sampler's actual sigma schedule**: At encoding time, query the model's sigma schedule and create percentage ranges that match the exact sigma values for each step.
 
-2. **Custom conditioning callback**: Implement a sampler hook that intercepts conditioning selection and applies A1111-style step-based logic directly.
+2. **Custom conditioning callback**: Implement a sampler hook that intercepts conditioning selection and applies A1111-style step-based logic directly. Sketch in `hook.py`
 
 3. **Sigma-aware percentage mapping**: Pre-compute the sigma distribution for common samplers and create lookup tables for accurate step→percentage conversion.
 
 ### Other Limitations
 
 - **Token Counter**: Display pending frontend integration
+- **Scheduling**: For the same reason as the previous section, step based scheduling is fake.
 
 ---
 

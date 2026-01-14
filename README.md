@@ -38,8 +38,10 @@ pip install lark
 
 ### Alternation
 
-- `[white|black]` - Blends concepts (50/50 average)
-- `[A|B|C]` - Equal blend of 3 options (33% each)
+- `[white|black]` - Switches per-step (step 1 = white, step 2 = black, step 3 = white...)
+- `[A|B|C]` - Cycles through options each step
+
+> ⚠️ **Note**: First option may appear weaker than in A1111 due to sigma mapping differences. See Known Limitations.
 
 ### Model Support
 
@@ -59,8 +61,36 @@ pip install lark
 
 ## 🚧 Known Limitations
 
+### Alternation Weight Difference
+
+**Issue**: When using alternation `[A|B]`, the first option appears weaker in ComfyUI compared to A1111.
+
+**Example**: With prompt `[as109|fkey]`:
+
+- **A1111**: `as109` (first option) dominates the style
+- **ComfyUI**: `fkey` (second option) appears stronger
+
+**Root Cause**: Architectural difference in how scheduling is applied:
+
+| Aspect        | A1111                                     | ComfyUI                                    |
+| ------------- | ----------------------------------------- | ------------------------------------------ |
+| **Selection** | Step-based: `current_step <= end_at_step` | Sigma-based: percentage → sigma conversion |
+| **Mapping**   | Linear step numbers (1, 2, 3...)          | Non-linear sigma distribution              |
+| **Boundary**  | Inclusive (`<=`)                          | Exclusive (`<` and `>`)                    |
+
+A1111 reconstructs conditioning per-step using discrete step numbers. ComfyUI uses `start_percent`/`end_percent` which converts through a non-linear sigma schedule. Even with identical step-to-percentage mapping, the sigma distributions differ.
+
+**Potential Solutions** (not yet implemented):
+
+1. **Access sampler's actual sigma schedule**: At encoding time, query the model's sigma schedule and create percentage ranges that match the exact sigma values for each step.
+
+2. **Custom conditioning callback**: Implement a sampler hook that intercepts conditioning selection and applies A1111-style step-based logic directly.
+
+3. **Sigma-aware percentage mapping**: Pre-compute the sigma distribution for common samplers and create lookup tables for accurate step→percentage conversion.
+
+### Other Limitations
+
 - **Token Counter**: Display pending frontend integration
-- **True Alternation**: Uses blending, not per-step switching (would need sampler hooks)
 - **Without Lark**: Nested syntax won't parse; falls back to simple regex
 
 ---

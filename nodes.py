@@ -13,7 +13,7 @@ import torch
 import logging
 import re
 import comfy.model_management as model_management
-from .parser import get_prompt_schedule, HAS_LARK
+from .parser import get_prompt_schedule
 
 logger = logging.getLogger("A1111PromptNode")
 
@@ -73,7 +73,6 @@ class A1111PromptNode:
         logger.info(f"[God Node] Model: {'SDXL' if is_sdxl else 'SD1.5'}")
         logger.info(f"[God Node] Steps: {steps}")
         logger.info(f"[God Node] Normalization: {'ON' if normalization else 'OFF'}")
-        logger.info(f"[God Node] Has Lark: {HAS_LARK}")
 
         # Use A1111-style schedule generation
         schedule = get_prompt_schedule(text, steps)

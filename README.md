@@ -95,7 +95,7 @@ Connect the output MODEL to your sampler to enable true per-step conditioning sw
 
 ## How It Works
 
-### The Problem with Standard ComfyUI
+### Problem I had with comfy prompting
 
 ComfyUI uses **sigma-based percentage ranges** for conditioning:
 
@@ -103,7 +103,7 @@ ComfyUI uses **sigma-based percentage ranges** for conditioning:
 - Non-linear sigma distribution means timing differs from A1111
 - First alternation option often appears weaker
 
-### Our Solution
+### What we do instead
 
 When MODEL is connected with step-based scheduling:
 

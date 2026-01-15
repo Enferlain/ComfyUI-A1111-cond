@@ -1,6 +1,6 @@
-# A1111 Prompt Node (God Node)
+# A1111 Prompt Node
 
-A custom ComfyUI node that implements A1111-style prompt handling with proper isolation and emphasis math.
+A custom ComfyUI node that implements **true A1111-style prompt handling** with proper isolation, emphasis math, and step-based scheduling.
 
 ## Installation
 
@@ -10,16 +10,18 @@ Requires `lark` for full nested syntax support:
 pip install lark
 ```
 
-## ✅ Working Features
+## Features
 
 ### Core Features
 
 - **Hard Chunking (The Sandbox)**: Tokens split into 75-token chunks with padding, preventing concept bleeding
 - **Direct Scaling (Anti-Burn)**: Uses `z * weight` instead of Comfy's interpolation, avoiding artifacts at high weights
-- **BREAK Support**: Fully isolated context windows
+- **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
 
-### Scheduling (Fully Recursive)
+### Step-Based Scheduling ✨
+
+**True A1111 parity!** When you provide a MODEL input, step-based scheduling works exactly like A1111:
 
 | Syntax          | Meaning                                  |
 | --------------- | ---------------------------------------- |
@@ -36,66 +38,85 @@ pip install lark
 [honovy, exsys:chen bin, [as109|fkey], [sweetonedollar:11]:0.4]
 ```
 
-### Alternation
+### Alternation ✨
 
 - `[white|black]` - Switches per-step (step 1 = white, step 2 = black, step 3 = white...)
 - `[A|B|C]` - Cycles through options each step
+- `[A|]` - Alternates between A and nothing
 
-> ⚠️ **Note**: First option may appear weaker than in A1111 due to sigma mapping differences. See Known Limitations.
+**True per-step switching!** When MODEL is connected, alternation works exactly like A1111 - the conditioning is swapped at each step during sampling.
 
 ### Model Support
 
 - **SDXL**: Dual CLIP (clip_l + clip_g) with independent weight scaling
 - **SD1.5**: Full support
 
+---
+
+## Usage
+
 ### Inputs
 
-| Input         | Type   | Description                                      |
-| ------------- | ------ | ------------------------------------------------ |
-| clip          | CLIP   | The CLIP model                                   |
-| text          | STRING | Prompt with A1111 syntax                         |
-| steps         | INT    | Total sampling steps (for step-based scheduling) |
-| normalization | BOOL   | Enable EmphasisOriginalNoNorm                    |
+| Input         | Type   | Required | Description                                   |
+| ------------- | ------ | -------- | --------------------------------------------- |
+| clip          | CLIP   | Yes      | The CLIP model                                |
+| text          | STRING | Yes      | Prompt with A1111 syntax                      |
+| model         | MODEL  | No       | Connect for step-based scheduling/alternation |
+| steps         | INT    | No       | Total sampling steps (default: 20)            |
+| normalization | BOOL   | No       | Enable EmphasisOriginalNoNorm                 |
+| debug         | BOOL   | No       | Show detailed schedule information            |
+
+### Outputs
+
+| Output       | Type         | Description                                     |
+| ------------ | ------------ | ----------------------------------------------- |
+| conditioning | CONDITIONING | The encoded conditioning                        |
+| model        | MODEL        | Model with step-conditioning (when input given) |
+
+### Basic Workflow
+
+For **simple prompts** (no scheduling/alternation):
+
+```
+CLIP ──► [A1111 Style Prompt] ──► CONDITIONING ──► Sampler
+```
+
+For **step-based scheduling/alternation**:
+
+```
+CLIP ──────┐
+           ├──► [A1111 Style Prompt] ──► CONDITIONING ──► Sampler
+MODEL ─────┘                         └──► MODEL ─────────►
+```
+
+Connect the output MODEL to your sampler to enable true per-step conditioning switching.
 
 ---
 
-## 🚧 Known Limitations
+## How It Works
 
-### Alternation Weight Difference
+### The Problem with Standard ComfyUI
 
-**Issue**: When using alternation `[A|B]`, the first option appears weaker in ComfyUI compared to A1111.
+ComfyUI uses **sigma-based percentage ranges** for conditioning:
 
-**Example**: With prompt `[as109|fkey]`:
+- Converts step percentages to sigma values
+- Non-linear sigma distribution means timing differs from A1111
+- First alternation option often appears weaker
 
-- **A1111**: `as109` (first option) dominates the style
-- **ComfyUI**: `fkey` (second option) appears stronger
+### Our Solution
 
-**Root Cause**: Architectural difference in how scheduling is applied:
+When MODEL is connected with step-based scheduling:
 
-| Aspect        | A1111                                     | ComfyUI                                    |
-| ------------- | ----------------------------------------- | ------------------------------------------ |
-| **Selection** | Step-based: `current_step <= end_at_step` | Sigma-based: percentage → sigma conversion |
-| **Mapping**   | Linear step numbers (1, 2, 3...)          | Non-linear sigma distribution              |
-| **Boundary**  | Inclusive (`<=`)                          | Exclusive (`<` and `>`)                    |
+1. **All unique prompts are pre-encoded** once (efficient caching)
+2. **A model wrapper is registered** that intercepts each sampling step
+3. **At each step**, the wrapper swaps the conditioning to the correct per-step embedding
+4. **Exact step matching** based on the sigma schedule
 
-A1111 reconstructs conditioning per-step using discrete step numbers. ComfyUI uses `start_percent`/`end_percent` which converts through a non-linear sigma schedule. Even with identical step-to-percentage mapping, the sigma distributions differ.
-
-**Potential Solutions** (not yet implemented):
-
-1. **Access sampler's actual sigma schedule**: At encoding time, query the model's sigma schedule and create percentage ranges that match the exact sigma values for each step.
-
-2. **Custom conditioning callback**: Implement a sampler hook that intercepts conditioning selection and applies A1111-style step-based logic directly. Sketch in `hook.py`
-
-3. **Sigma-aware percentage mapping**: Pre-compute the sigma distribution for common samplers and create lookup tables for accurate step→percentage conversion.
-
-### Other Limitations
-
-- **Token Counter**: Display pending frontend integration
-- **Scheduling**: For the same reason as the previous section, step based scheduling is fake.
+This achieves **true A1111 parity** - the same prompt produces the same style balance in both A1111 and ComfyUI.
 
 ---
 
-## Usage Examples
+## Examples
 
 ```
 # Basic emphasis
@@ -107,9 +128,40 @@ artist name BREAK character name, wearing a hat
 # Step-based scheduling (with steps=28)
 [mountains:ocean:14] at sunset
 
+# Alternation - requires MODEL input for true per-step switching
+1girl, [as109|fkey], detailed
+
+# Add element at specific step
+1girl, [sweetonedollar:11], high quality
+
 # Nested scheduling with alternation
 1girl, [honovy:chen bin, [as109|fkey]:0.4]
 
 # Combined
 (epic:1.2) [forest:city:0.3] BREAK detailed background
 ```
+
+---
+
+## Debug Mode
+
+Enable the `debug` input to see detailed information:
+
+```
+[A1111 Prompt] Unique prompts: 4 (will encode each once)
+[A1111 Prompt] Step transitions: 27 across 28 steps
+[A1111 Prompt] Alternation pattern sample:
+  Step 0: 1girl, chen bin, yoneyama mai, as109, , agm...
+  Step 1: 1girl, chen bin, yoneyama mai, fkey, , agm...
+  Step 2: 1girl, chen bin, yoneyama mai, as109, , agm...
+  Step 14: 1girl, chen bin, yoneyama mai, as109, , agm...
+  Step 27: 1girl, chen bin, yoneyama mai, fkey, , agm...
+```
+
+---
+
+## Notes
+
+- **Without MODEL input**: Scheduling/alternation still works but uses ComfyUI's standard sigma-based percentages (may differ slightly from A1111)
+- **With MODEL input**: True per-step conditioning switching, matching A1111 behavior
+- **Performance**: Unique prompts are encoded only once and cached, so `[A|B]` with 28 steps only encodes 2 prompts, not 28

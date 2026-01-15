@@ -146,11 +146,33 @@ class A1111PromptNode:
         has_schedule = len(schedule) > 1
 
         if debug:
-            logger.info(f"[A1111 Prompt] Schedule has {len(schedule)} segments.")
+            unique_prompts = list(set(full_step_prompts))
             logger.info(
-                f"[A1111 Prompt] Full Step Prompts (first 5): {full_step_prompts[:5]}"
+                f"[A1111 Prompt] Unique prompts: {len(unique_prompts)} (will encode each once)"
             )
-            logger.info(f"[A1111 Prompt] Transitions: {transitions}")
+            logger.info(
+                f"[A1111 Prompt] Step transitions: {transitions} across {steps} steps"
+            )
+
+            # Show alternation pattern if applicable
+            if transitions > steps // 3:  # Likely alternation
+                # Sample a few steps to show pattern
+                sample_steps = [0, 1, 2, steps // 2, steps - 1]
+                pattern = []
+                for s in sample_steps:
+                    if s < len(full_step_prompts):
+                        # Extract just the varying part (first 50 chars)
+                        p = full_step_prompts[s][:50]
+                        pattern.append(f"Step {s}: {p}...")
+                logger.info("[A1111 Prompt] Alternation pattern sample:")
+                for p in pattern:
+                    logger.info(f"  {p}")
+            else:
+                # Show range-based transitions
+                logger.info("[A1111 Prompt] Schedule segments:")
+                for seg in schedule[:5]:  # First 5 segments
+                    end_step, prompt = seg
+                    logger.info(f"  Until step {end_step}: {prompt[:60]}...")
 
         if not has_schedule:
             # Just one constant prompt - no step switching needed
@@ -370,61 +392,9 @@ class A1111PromptNode:
         return torch.cat([cond_l, cond_g], dim=-1)
 
 
-class A1111StepConditioningSetup:
-    """
-    Sets up step-based conditioning on a model.
-
-    Connect this node between your model and sampler when using
-    step-based scheduling (alternation or [from:to:when]) in A1111Prompt.
-
-    This node reads the step schedule from the conditioning and registers
-    the wrapper that will swap conditioning per-step during sampling.
-    """
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "model": ("MODEL",),
-                "conditioning": ("CONDITIONING",),
-            }
-        }
-
-    RETURN_TYPES = ("MODEL", "CONDITIONING")
-    RETURN_NAMES = ("model", "conditioning")
-    FUNCTION = "setup"
-    CATEGORY = "conditioning/advanced"
-
-    def setup(self, model, conditioning):
-        from .hooks import setup_step_conditioning_on_model
-
-        # Check if conditioning has step schedule
-        if not conditioning or len(conditioning) == 0:
-            return (model, conditioning)
-
-        cond_dict = conditioning[0][1] if len(conditioning[0]) > 1 else {}
-        step_schedule = cond_dict.get("a1111_step_schedule", None)
-
-        if step_schedule is None:
-            # No step schedule, just pass through
-            return (model, conditioning)
-
-        # Clone model to avoid modifying the original
-        model = model.clone()
-
-        # Set up the wrapper
-        step_embeddings = step_schedule["embeddings"]
-        steps = step_schedule["steps"]
-        setup_step_conditioning_on_model(model, step_embeddings, steps)
-
-        return (model, conditioning)
-
-
 NODE_CLASS_MAPPINGS = {
     "A1111Prompt": A1111PromptNode,
-    "A1111StepSetup": A1111StepConditioningSetup,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "A1111Prompt": "A1111 Style Prompt",
-    "A1111StepSetup": "A1111 Step Conditioning Setup",
 }

@@ -14,6 +14,7 @@ import logging
 import re
 import comfy.model_management as model_management
 from .parser import get_prompt_schedule
+from .hooks import create_step_schedule_cond
 
 logger = logging.getLogger("A1111PromptNode")
 
@@ -27,6 +28,7 @@ class A1111PromptNode:
                 "text": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             },
             "optional": {
+                "model": ("MODEL",),
                 "steps": (
                     "INT",
                     {
@@ -47,14 +49,19 @@ class A1111PromptNode:
             },
         }
 
-    RETURN_TYPES = ("CONDITIONING",)
-    RETURN_NAMES = ("conditioning",)
+    RETURN_TYPES = ("CONDITIONING", "MODEL")
+    RETURN_NAMES = ("conditioning", "model")
     FUNCTION = "encode"
     CATEGORY = "conditioning/advanced"
 
-    def encode(self, clip, text, steps=20, normalization=False, debug=False):
+    def encode(
+        self, clip, text, model=None, steps=20, normalization=False, debug=False
+    ):
         """
         Main encode function - A1111 style with step-based scheduling.
+
+        If MODEL is provided and step-based scheduling is used (alternation/scheduling),
+        the model will be configured to swap conditioning per-step during sampling.
 
         Key features:
         - BREAK segments are tokenized SEPARATELY for isolation
@@ -81,74 +88,115 @@ class A1111PromptNode:
                 f"[A1111 Prompt] Normalization: {'ON' if normalization else 'OFF'}"
             )
 
-        # Use A1111-style schedule generation
         schedule = get_prompt_schedule(text, steps)
 
-        if debug:
-            logger.info(f"[A1111 Prompt] Raw schedule ({len(schedule)} entries):")
-            for end_step, prompt_text in schedule[:10]:
-                preview = (
-                    prompt_text[:60] + "..." if len(prompt_text) > 60 else prompt_text
-                )
-                logger.info(f"  Step {end_step}: '{preview}'")
+        # Check if we need alternation hook (if any step has alternation)
+        # The parser returns a flat list of (end_step, prompt)
+        # If the prompts are DIFFERENT for almost every step, it's likely alternation or a gradient
+        # We can just check if we have many changes.
 
-        # Group consecutive identical prompts
-        grouped_schedule = self._group_schedule(schedule, steps)
+        # Actually, let's just checking if the schedule is complex.
+        # But wait, [A|B] generates a schedule that changes every step.
+        # So we can detect if len(schedule) is roughly equal to steps?
+        # Or simpler: always use the hook if there's more than 1 item in schedule?
+        # NO. Standard scheduling [from:to:when] creates few segments.
+        # Alternation [A|B] creates 'steps' segments.
+
+        # If we just implemented the hook for EVERYTHING, would that be bad?
+        # It adds a python call per step. Might be slightly slower.
+        # But it guarantees correctness.
+        # However, standard ComfyUI scheduling (TIMESTEP range) is more efficient for simple [from:to].
+        # Let's support both.
+
+        # Strategy:
+        # 1. Flatten schedule to per-step list of prompts (size = steps)
+        # 2. Encode all unique prompts
+        # 3. Create a list of (cond, pooled) for each step
+        # 4. Attach hook with this list
+
+        # First, expand schedule to full per-step list
+        full_step_prompts = [""] * steps
+        prev_end = 0
+        for end_step, prompt in schedule:
+            # fill from prev_end to end_step
+            # clamp just in case
+            safe_end = min(end_step, steps)
+            for i in range(prev_end, safe_end):
+                full_step_prompts[i] = prompt
+            prev_end = safe_end
+
+        # Analyze if we really need per-step switching
+        # Count transitions
+        transitions = 0
+        for i in range(1, len(full_step_prompts)):
+            if full_step_prompts[i] != full_step_prompts[i - 1]:
+                transitions += 1
+
+        # If few transitions (like < 5?), we can use standard Comfy scheduling ranges for efficiency.
+        # If many transitions (alternation [A|B] = steps/2 transitions), use Hook.
+        # Let's say if transitions > 4, or if user asks for it (we can add a force/debug toggle later).
+        # For now, let's be aggressive and use Hook for > 2 transitions to be safe for [A|B|C].
+
+        # TODO: A1111 "Scheduling" [from:to:when] is also technically 'step based'.
+        # ComfyUI Percentages are sigma-based approximations.
+        # To get TRUE A1111 parity for even simple scheduling, we should use the Hook!
+        # Because ComfyUI's percent->sigma mapping is non-linear and might drift from A1111's linear step count.
+        # So, ALWAYS USE HOOK if there is ANY schedule?
+
+        has_schedule = len(schedule) > 1
 
         if debug:
+            logger.info(f"[A1111 Prompt] Schedule has {len(schedule)} segments.")
             logger.info(
-                f"[A1111 Prompt] Grouped schedule ({len(grouped_schedule)} ranges):"
+                f"[A1111 Prompt] Full Step Prompts (first 5): {full_step_prompts[:5]}"
             )
-            for start_pct, end_pct, prompt_text in grouped_schedule:
-                preview = (
-                    prompt_text[:60] + "..." if len(prompt_text) > 60 else prompt_text
-                )
-                logger.info(f"  {start_pct:.1%}-{end_pct:.1%}: '{preview}'")
+            logger.info(f"[A1111 Prompt] Transitions: {transitions}")
 
-        # Collect unique prompts
-        unique_prompts = list(set(prompt for _, _, prompt in grouped_schedule))
-        if debug:
-            logger.info(
-                f"[A1111 Prompt] Unique prompts to encode: {len(unique_prompts)}"
+        if not has_schedule:
+            # Just one constant prompt - no step switching needed
+            prompt_text = schedule[0][1] if schedule else ""
+            cond, pooled = self._encode_with_break_isolation(
+                clip, prompt_text, normalization, is_sdxl, debug
             )
+            return ([[cond, {"pooled_output": pooled}]], model)
 
-            logger.info(f"[A1111 Prompt] ========== DEBUG END ==========")
-
-        # Encode all unique prompts WITH BREAK ISOLATION
+        # Use step-based conditioning for strict A1111 parity
         encoded_cache = {}
+        unique_prompts = list(set(full_step_prompts))
+
         for prompt_text in unique_prompts:
             if prompt_text in encoded_cache:
                 continue
-
-            # Handle BREAK segments with proper isolation
             cond, pooled = self._encode_with_break_isolation(
                 clip, prompt_text, normalization, is_sdxl, debug
             )
             encoded_cache[prompt_text] = (cond, pooled)
 
-        # Build final conditioning schedule
-        final_conditionings = []
-        for start_pct, end_pct, prompt_text in grouped_schedule:
-            if prompt_text not in encoded_cache:
-                continue
+        # Build per-step embedding list
+        step_embeddings = []
+        for prompt in full_step_prompts:
+            step_embeddings.append(encoded_cache[prompt])
 
-            cond, pooled = encoded_cache[prompt_text]
+        # Use the first step's conditioning as base
+        base_cond, base_pooled = step_embeddings[0]
 
-            cond_dict = {
-                "start_percent": start_pct,
-                "end_percent": end_pct,
-            }
-            if pooled is not None:
-                cond_dict["pooled_output"] = pooled
+        # Create conditioning with step schedule attached
+        conditioning = create_step_schedule_cond(
+            step_embeddings, steps, base_cond, base_pooled
+        )
 
-            final_conditionings.append([cond, cond_dict])
+        # If model is provided, set up the wrapper for step-based conditioning
+        if model is not None:
+            from .hooks import setup_step_conditioning_on_model
 
-        if not final_conditionings:
-            tokens = clip.tokenize("")
-            result = clip.encode_from_tokens_scheduled(tokens)
-            return (result,)
+            model = model.clone()  # Don't modify the original
+            setup_step_conditioning_on_model(model, step_embeddings, steps)
+            if debug:
+                logger.info(
+                    f"[A1111 Prompt] Set up step conditioning on model for {len(step_embeddings)} steps"
+                )
 
-        return (final_conditionings,)
+        return (conditioning, model)
 
     def _encode_with_break_isolation(
         self, clip, prompt_text, normalization, is_sdxl, debug
@@ -206,30 +254,6 @@ class A1111PromptNode:
         return self._encode_with_direct_scaling(
             clip, all_tokens, normalization, is_sdxl
         )
-
-    def _group_schedule(self, schedule, steps):
-        """
-        Convert A1111-style schedule [(end_step, text), ...]
-        to ComfyUI-style [(start_pct, end_pct, text), ...].
-        """
-        if not schedule:
-            return []
-
-        groups = []
-        prev_end_step = 0
-
-        for end_step, prompt_text in schedule:
-            start_pct = prev_end_step / steps
-            end_pct = end_step / steps
-
-            if groups and groups[-1][2] == prompt_text:
-                groups[-1] = (groups[-1][0], end_pct, prompt_text)
-            else:
-                groups.append((start_pct, end_pct, prompt_text))
-
-            prev_end_step = end_step
-
-        return groups
 
     def _encode_with_direct_scaling(self, clip, tokens, normalization, is_sdxl):
         """Encode with direct scaling (anti-burn) like A1111's EmphasisOriginalNoNorm."""
@@ -343,10 +367,64 @@ class A1111PromptNode:
         cond_g = cond[:, :, dim_l:]
 
         cond_l = self._apply_direct_scaling(cond_l, weights_l, normalization)
-        cond_g = self._apply_direct_scaling(cond_g, weights_g, normalization)
-
         return torch.cat([cond_l, cond_g], dim=-1)
 
 
-NODE_CLASS_MAPPINGS = {"A1111Prompt": A1111PromptNode}
-NODE_DISPLAY_NAME_MAPPINGS = {"A1111Prompt": "A1111 Style Prompt"}
+class A1111StepConditioningSetup:
+    """
+    Sets up step-based conditioning on a model.
+
+    Connect this node between your model and sampler when using
+    step-based scheduling (alternation or [from:to:when]) in A1111Prompt.
+
+    This node reads the step schedule from the conditioning and registers
+    the wrapper that will swap conditioning per-step during sampling.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "conditioning": ("CONDITIONING",),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL", "CONDITIONING")
+    RETURN_NAMES = ("model", "conditioning")
+    FUNCTION = "setup"
+    CATEGORY = "conditioning/advanced"
+
+    def setup(self, model, conditioning):
+        from .hooks import setup_step_conditioning_on_model
+
+        # Check if conditioning has step schedule
+        if not conditioning or len(conditioning) == 0:
+            return (model, conditioning)
+
+        cond_dict = conditioning[0][1] if len(conditioning[0]) > 1 else {}
+        step_schedule = cond_dict.get("a1111_step_schedule", None)
+
+        if step_schedule is None:
+            # No step schedule, just pass through
+            return (model, conditioning)
+
+        # Clone model to avoid modifying the original
+        model = model.clone()
+
+        # Set up the wrapper
+        step_embeddings = step_schedule["embeddings"]
+        steps = step_schedule["steps"]
+        setup_step_conditioning_on_model(model, step_embeddings, steps)
+
+        return (model, conditioning)
+
+
+NODE_CLASS_MAPPINGS = {
+    "A1111Prompt": A1111PromptNode,
+    "A1111StepSetup": A1111StepConditioningSetup,
+}
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "A1111Prompt": "A1111 Style Prompt",
+    "A1111StepSetup": "A1111 Step Conditioning Setup",
+}

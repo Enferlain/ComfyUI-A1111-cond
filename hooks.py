@@ -101,13 +101,8 @@ class StepConditioningHandler:
         # Get target conditioning for this step
         target_cond, target_pooled = self.step_embeddings[step_idx]
 
-        # Log step transitions only
-        if self._last_logged_step != step_idx:
-            cond_hash = hash(target_cond.sum().item()) if target_cond is not None else 0
-            logging.info(
-                f"A1111 Step: {step_idx + 1}/{self.steps}, sigma={sigma_val:.4f}, cond_hash={cond_hash}"
-            )
-            self._last_logged_step = step_idx
+        # Track step for deduplication (debug logging removed for cleaner output)
+        self._last_logged_step = step_idx
 
         # IMPORTANT: The batch contains both positive and negative conditioning.
         # cond_or_uncond tells us which is which: 0=positive, 1=negative
@@ -169,10 +164,6 @@ class StepConditioningHandler:
             #
             #         c["y"] = modified_y
             #         logging.debug(f"  Also swapped pooled output (first 1280 of y)")
-
-            # Log that swap happened
-            num_positive = sum(1 for x in cond_or_uncond if x == 0)
-            logging.info(f"  Swapped {num_positive} positive conditioning slots")
 
         # Call the actual model
         return apply_model_func(input_x, timestep, **c)

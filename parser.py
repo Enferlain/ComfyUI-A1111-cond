@@ -19,14 +19,16 @@ from typing import List, Tuple
 import lark
 
 
-# A1111-style Lark grammar
+# A1111-style Lark grammar with scheduled alternation extension
+# Extended to support [a|b:when] and [a|b::when] syntax
 GRAMMAR = r"""
 !start: (prompt | /[][():]/+)*
-prompt: (emphasized | scheduled | alternate | plain | WHITESPACE)*
+prompt: (emphasized | scheduled | alternate_scheduled | alternate | plain | WHITESPACE)*
 !emphasized: "(" prompt ")"
         | "(" prompt ":" prompt ")"
         | "[" prompt "]"
 scheduled: "[" [prompt ":"] prompt ":" [WHITESPACE] NUMBER [WHITESPACE] "]"
+alternate_scheduled: "[" prompt ("|" [prompt])+ ":" [":"] [WHITESPACE] NUMBER [WHITESPACE] "]"
 alternate: "[" prompt ("|" [prompt])+ "]"
 WHITESPACE: /\s+/
 plain: /([^\\[\]():|]|\\.)+/
@@ -43,6 +45,12 @@ def _get_parser():
     if _parser is None:
         _parser = lark.Lark(GRAMMAR)
     return _parser
+
+
+def reset_parser():
+    """Reset the cached parser. Call this after grammar changes."""
+    global _parser
+    _parser = None
 
 
 def get_prompt_schedule(prompt: str, steps: int) -> List[Tuple[int, str]]:
@@ -114,6 +122,43 @@ def _collect_steps(steps: int, trees) -> List[int]:
             # Alternation changes every step
             result.update(range(1, steps + 1))
 
+        def alternate_scheduled(self, tree):
+            # Scheduled alternation: [a|b:when] or [a|b::when]
+            # Format: options..., maybe ":", maybe ":", NUMBER
+            # Find the NUMBER token (should be near the end)
+            when_token = None
+            has_double_colon = False
+            for i, child in enumerate(tree.children):
+                if isinstance(child, lark.Token):
+                    if child.type == "NUMBER":
+                        when_token = child
+                    elif str(child) == ":":
+                        # Check if there's another colon before the number
+                        if when_token is None:
+                            # This : comes before NUMBER, check if double
+                            for j in range(i + 1, len(tree.children)):
+                                if (
+                                    isinstance(tree.children[j], lark.Token)
+                                    and str(tree.children[j]) == ":"
+                                ):
+                                    has_double_colon = True
+                                    break
+
+            if when_token is not None:
+                s_str = str(when_token)
+                v = float(s_str)
+                if "." in s_str:
+                    step_num = int(v * steps)
+                else:
+                    step_num = int(v)
+                step_num = max(1, min(steps, step_num))
+                # Store the computed step and whether it's double-colon
+                tree.children.append(("_schedule_info", step_num, has_double_colon))
+                result.add(step_num)
+
+            # Still need all steps for alternation
+            result.update(range(1, steps + 1))
+
     for tree in trees:
         CollectSteps().visit(tree)
 
@@ -170,6 +215,83 @@ def _at_step(step: int, total_steps: int, tree) -> str:
                 return
             idx = (step - 1) % len(options)
             yield options[idx]
+
+        def alternate_scheduled(self, args):
+            # Scheduled alternation: [a|b:when] or [a|b::when]
+            # Extract options and schedule info
+            options = []
+            schedule_step = None
+            is_remove = False  # True for ::when (remove), False for :when (add)
+
+            for arg in args:
+                if (
+                    isinstance(arg, tuple)
+                    and len(arg) == 3
+                    and arg[0] == "_schedule_info"
+                ):
+                    # This is our schedule info from collect_steps
+                    schedule_step, is_remove = arg[1], arg[2]
+                elif isinstance(arg, lark.Token):
+                    # Skip colon and number tokens
+                    if arg.type == "NUMBER" or str(arg) == ":":
+                        continue
+                    options.append(str(arg) if arg else "")
+                elif arg is not None:
+                    options.append("" if not arg else arg)
+
+            # Fallback: if no schedule info, look for NUMBER token
+            if schedule_step is None:
+                for arg in args:
+                    if isinstance(arg, lark.Token) and arg.type == "NUMBER":
+                        s_str = str(arg)
+                        v = float(s_str)
+                        if "." in s_str:
+                            schedule_step = int(v * total_steps)
+                        else:
+                            schedule_step = int(v)
+                        schedule_step = max(1, min(total_steps, schedule_step))
+                        # Check for double colon by counting colons
+                        colon_count = sum(
+                            1
+                            for a in args
+                            if isinstance(a, lark.Token) and str(a) == ":"
+                        )
+                        is_remove = colon_count >= 2
+                        break
+
+            if schedule_step is None:
+                # No schedule found, fall back to normal alternation
+                idx = (step - 1) % len(options) if options else 0
+                yield options[idx] if options else ""
+                return
+
+            # Apply scheduling logic
+            # [a|b:when] = nothing before when, alternate after (add at step when)
+            # [a|b::when] = alternate before when, nothing after (remove at step when)
+            if is_remove:
+                # ::when - alternate before, nothing after
+                if step <= schedule_step:
+                    # Alternate
+                    if options:
+                        idx = (step - 1) % len(options)
+                        yield options[idx]
+                    else:
+                        yield ""
+                else:
+                    # After removal, yield nothing
+                    yield ""
+            else:
+                # :when - nothing before, alternate after
+                if step <= schedule_step:
+                    # Before the schedule point, yield nothing
+                    yield ""
+                else:
+                    # After the schedule point, alternate
+                    if options:
+                        idx = (step - 1) % len(options)
+                        yield options[idx]
+                    else:
+                        yield ""
 
         def emphasized(self, args):
             # Keep emphasis syntax in output

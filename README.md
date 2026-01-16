@@ -1,6 +1,6 @@
 # A1111 Prompt Node
 
-A custom ComfyUI node that implements **true A1111-style prompt handling** with proper isolation, emphasis math, and step-based scheduling.
+A custom ComfyUI node that implements **A1111-style prompt handling** with proper isolation, emphasis math, scheduling, and alternation.
 
 ## Installation
 
@@ -19,9 +19,7 @@ pip install lark
 - **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
 
-### Step-Based Scheduling ✨
-
-**True A1111 parity!** When you provide a MODEL input, step-based scheduling works exactly like A1111:
+### Scheduling
 
 | Syntax          | Meaning                                  |
 | --------------- | ---------------------------------------- |
@@ -38,13 +36,31 @@ pip install lark
 [honovy, exsys:chen bin, [as109|fkey], [sweetonedollar:11]:0.4]
 ```
 
-### Alternation ✨
+### Alternation
 
-- `[white|black]` - Switches per-step (step 1 = white, step 2 = black, step 3 = white...)
-- `[A|B|C]` - Cycles through options each step
-- `[A|]` - Alternates between A and nothing
+| Syntax           | Meaning                                           |
+| ---------------- | ------------------------------------------------- |
+| `[white\|black]` | Switches per-step (step 1=white, step 2=black...) |
+| `[A\|B\|C]`      | Cycles through options each step                  |
+| `[A\|]`          | Alternates between A and nothing                  |
 
-**True per-step switching!** When MODEL is connected, alternation works exactly like A1111 - the conditioning is swapped at each step during sampling.
+### Scheduled Alternation (Extension)
+
+Control when alternation starts or stops:
+
+| Syntax               | Meaning                                   |
+| -------------------- | ----------------------------------------- |
+| `[as109\|fkey::0.6]` | Alternate until 60%, then nothing         |
+| `[as109\|fkey:0.4]`  | Nothing until 40%, then start alternating |
+| `[as109\|fkey::15]`  | Alternate until step 15, then nothing     |
+
+**Combining with scheduling to lock to a value:**
+
+```
+[as109|fkey::0.6][:as109:0.6]
+```
+
+This alternates until 60%, then switches to just "as109".
 
 ### Model Support
 
@@ -57,62 +73,35 @@ pip install lark
 
 ### Inputs
 
-| Input         | Type   | Required | Description                                   |
-| ------------- | ------ | -------- | --------------------------------------------- |
-| clip          | CLIP   | Yes      | The CLIP model                                |
-| text          | STRING | Yes      | Prompt with A1111 syntax                      |
-| model         | MODEL  | No       | Connect for step-based scheduling/alternation |
-| steps         | INT    | No       | Total sampling steps (default: 20)            |
-| normalization | BOOL   | No       | Enable EmphasisOriginalNoNorm                 |
-| debug         | BOOL   | No       | Show detailed schedule information            |
+| Input         | Type   | Required | Description                                      |
+| ------------- | ------ | -------- | ------------------------------------------------ |
+| clip          | CLIP   | Yes      | The CLIP model                                   |
+| text          | STRING | Yes      | Prompt with A1111 syntax                         |
+| model         | MODEL  | No       | Required for alternation/step-based conditioning |
+| steps         | INT    | No       | Total sampling steps (default: 20)               |
+| normalization | BOOL   | No       | Enable EmphasisOriginalNoNorm                    |
+| debug         | BOOL   | No       | Show detailed schedule information               |
 
 ### Outputs
 
-| Output       | Type         | Description                                     |
-| ------------ | ------------ | ----------------------------------------------- |
-| conditioning | CONDITIONING | The encoded conditioning                        |
-| model        | MODEL        | Model with step-conditioning (when input given) |
+| Output       | Type         | Description              |
+| ------------ | ------------ | ------------------------ |
+| conditioning | CONDITIONING | The encoded conditioning |
+| model        | MODEL        | Model with step wrapper  |
 
-### Basic Workflow
+### Workflow
 
-For **simple prompts** (no scheduling/alternation):
-
-```
-CLIP ──► [A1111 Style Prompt] ──► CONDITIONING ──► Sampler
-```
-
-For **step-based scheduling/alternation**:
+For **alternation and per-step scheduling** to work correctly, you must connect the MODEL input:
 
 ```
-CLIP ──────┐
-           ├──► [A1111 Style Prompt] ──► CONDITIONING ──► Sampler
-MODEL ─────┘                         └──► MODEL ─────────►
+        ┌─────────────────────────────┐
+MODEL ──┤                             ├──► MODEL ──► Sampler
+CLIP  ──┤   [A1111 Style Prompt]      ├
+        │                             ├──► CONDITIONING ──► Sampler
+        └─────────────────────────────┘
 ```
 
-Connect the output MODEL to your sampler to enable true per-step conditioning switching.
-
----
-
-## How It Works
-
-### The Problem with Standard ComfyUI
-
-ComfyUI uses **sigma-based percentage ranges** for conditioning:
-
-- Converts step percentages to sigma values
-- Non-linear sigma distribution means timing differs from A1111
-- First alternation option often appears weaker
-
-### Our Solution
-
-When MODEL is connected with step-based scheduling:
-
-1. **All unique prompts are pre-encoded** once (efficient caching)
-2. **A model wrapper is registered** that intercepts each sampling step
-3. **At each step**, the wrapper swaps the conditioning to the correct per-step embedding
-4. **Exact step matching** based on the sigma schedule
-
-This achieves **true A1111 parity** - the same prompt produces the same style balance in both A1111 and ComfyUI.
+Without MODEL connected, only static prompts work (no alternation).
 
 ---
 
@@ -128,7 +117,7 @@ artist name BREAK character name, wearing a hat
 # Step-based scheduling (with steps=28)
 [mountains:ocean:14] at sunset
 
-# Alternation - requires MODEL input for true per-step switching
+# Alternation (requires MODEL connected)
 1girl, [as109|fkey], detailed
 
 # Add element at specific step
@@ -136,6 +125,9 @@ artist name BREAK character name, wearing a hat
 
 # Nested scheduling with alternation
 1girl, [honovy:chen bin, [as109|fkey]:0.4]
+
+# Scheduled alternation - stop at 60%
+1girl, [as109|fkey::0.6], detailed
 
 # Combined
 (epic:1.2) [forest:city:0.3] BREAK detailed background
@@ -154,14 +146,34 @@ Enable the `debug` input to see detailed information:
   Step 0: 1girl, chen bin, yoneyama mai, as109, , agm...
   Step 1: 1girl, chen bin, yoneyama mai, fkey, , agm...
   Step 2: 1girl, chen bin, yoneyama mai, as109, , agm...
-  Step 14: 1girl, chen bin, yoneyama mai, as109, , agm...
-  Step 27: 1girl, chen bin, yoneyama mai, fkey, , agm...
 ```
 
 ---
 
-## Notes
+## Technical Notes
 
-- **Without MODEL input**: Scheduling/alternation still works but uses ComfyUI's standard sigma-based percentages (may differ slightly from A1111)
-- **With MODEL input**: True per-step conditioning switching, matching A1111 behavior
-- **Performance**: Unique prompts are encoded only once and cached, so `[A|B]` with 28 steps only encodes 2 prompts, not 28
+### How Scheduling Works
+
+The node generates the correct prompt text for each step, matching A1111's behavior:
+
+- All unique prompts are encoded once (efficient caching)
+- Per-step embeddings are stored and swapped via model wrapper
+- Sigma-based step detection maps the sampling progress to steps
+
+### Known Limitations
+
+While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ slightly due to architectural differences:
+
+- A1111 applies conditioning at the CFGDenoiser level (before model call)
+- This node applies conditioning via model wrapper (during model call)
+
+Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control exactly when alternation stops.
+
+---
+
+## Performance
+
+- **Efficient encoding**: Unique prompts are encoded only once and cached
+- `[A|B]` with 28 steps only encodes 2 prompts, not 28
+- All embeddings are padded to the same length for efficient swapping
+- BREAK segments are batched together for efficient processing

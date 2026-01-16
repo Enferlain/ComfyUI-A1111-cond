@@ -60,9 +60,6 @@ class A1111PromptNode:
         """
         Main encode function - A1111 style with step-based scheduling.
 
-        If MODEL is provided and step-based scheduling is used (alternation/scheduling),
-        the model will be configured to swap conditioning per-step during sampling.
-
         Key features:
         - BREAK segments are tokenized SEPARATELY for isolation
         - Each BREAK segment becomes its own 77-token batch
@@ -193,6 +190,28 @@ class A1111PromptNode:
                 clip, prompt_text, normalization, is_sdxl, debug
             )
             encoded_cache[prompt_text] = (cond, pooled)
+
+        # Find maximum sequence length across all embeddings
+        max_seq_len = max(cond.shape[1] for cond, _ in encoded_cache.values())
+
+        # Pad all embeddings to the same length
+        for prompt_text in encoded_cache:
+            cond, pooled = encoded_cache[prompt_text]
+            if cond.shape[1] < max_seq_len:
+                pad_size = max_seq_len - cond.shape[1]
+                padding = torch.zeros(
+                    cond.shape[0],
+                    pad_size,
+                    cond.shape[2],
+                    device=cond.device,
+                    dtype=cond.dtype,
+                )
+                cond = torch.cat([cond, padding], dim=1)
+                encoded_cache[prompt_text] = (cond, pooled)
+                if debug:
+                    logger.info(
+                        f"[A1111 Prompt] Padded embedding from {cond.shape[1] - pad_size} to {max_seq_len}"
+                    )
 
         # Build per-step embedding list
         step_embeddings = []

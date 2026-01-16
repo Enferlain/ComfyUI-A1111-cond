@@ -21,7 +21,7 @@ class StepConditioningHandler:
     Handles step-based conditioning switching.
 
     Stores the per-step embeddings and provides the wrapper function
-    that swaps conditioning based on current sigma/timestep.
+    that swaps conditioning based on current step count (like A1111).
     """
 
     def __init__(self, step_embeddings, steps, sample_sigmas=None):
@@ -33,6 +33,7 @@ class StepConditioningHandler:
         """
         self.step_embeddings = step_embeddings
         self.steps = steps
+        self.call_count = 0  # A1111-style step counter
         self.sample_sigmas = sample_sigmas
         self._last_logged_step = -1
 
@@ -93,46 +94,85 @@ class StepConditioningHandler:
         transformer_options = c.get("transformer_options", {})
         sample_sigmas = transformer_options.get("sample_sigmas", self.sample_sigmas)
 
-        # Determine current step
+        # Determine current step from sigma
         step_idx = self.get_step_from_sigma(sigma_val, sample_sigmas)
         step_idx = max(0, min(step_idx, len(self.step_embeddings) - 1))
 
         # Get target conditioning for this step
         target_cond, target_pooled = self.step_embeddings[step_idx]
 
-        # Log step transitions
+        # Log step transitions only
         if self._last_logged_step != step_idx:
-            logging.debug(f"A1111 Step: {step_idx}/{self.steps}, sigma={sigma_val:.4f}")
+            cond_hash = hash(target_cond.sum().item()) if target_cond is not None else 0
+            logging.info(
+                f"A1111 Step: {step_idx + 1}/{self.steps}, sigma={sigma_val:.4f}, cond_hash={cond_hash}"
+            )
             self._last_logged_step = step_idx
 
-        # Swap conditioning if we have a target
+        # IMPORTANT: The batch contains both positive and negative conditioning.
+        # cond_or_uncond tells us which is which: 0=positive, 1=negative
+        # We only swap the POSITIVE conditioning, keep negative as-is for CFG to work.
         if target_cond is not None and "c_crossattn" in c:
-            # Get original conditioning info
             orig_cond = c["c_crossattn"]
             device = orig_cond.device
             dtype = orig_cond.dtype
 
             # Prepare swapped conditioning
-            new_cond = target_cond.to(device=device, dtype=dtype)
+            new_cond = target_cond.to(device=device, dtype=dtype).clone()
 
-            # Handle batch size
-            if new_cond.shape[0] != orig_cond.shape[0]:
-                B = orig_cond.shape[0]
-                pattern = [B] + [1] * (new_cond.ndim - 1)
-                new_cond = new_cond.repeat(*pattern)
+            # Handle sequence length mismatch first
+            if new_cond.shape[1] != orig_cond.shape[1]:
+                logging.info(
+                    f"  Sequence length mismatch: target={new_cond.shape[1]}, orig={orig_cond.shape[1]}"
+                )
+                if new_cond.shape[1] < orig_cond.shape[1]:
+                    pad_size = orig_cond.shape[1] - new_cond.shape[1]
+                    padding = torch.zeros(
+                        new_cond.shape[0],
+                        pad_size,
+                        new_cond.shape[2],
+                        device=device,
+                        dtype=dtype,
+                    )
+                    new_cond = torch.cat([new_cond, padding], dim=1)
+                else:
+                    new_cond = new_cond[:, : orig_cond.shape[1], :]
 
-            # Create modified c dict
+            # Create a copy of original conditioning to modify
+            modified_cond = orig_cond.clone()
+
+            # Only swap positive conditioning positions, keep negative as-is
+            # cond_or_uncond: 0=positive (cond), 1=negative (uncond)
+            for batch_idx, cond_type in enumerate(cond_or_uncond):
+                if cond_type == 0:  # This is positive conditioning
+                    # Swap this position with our target
+                    modified_cond[batch_idx] = new_cond[0]  # new_cond is [1, seq, dim]
+
+            # Create modified c dict with swapped conditioning
             c = dict(c)
-            c["c_crossattn"] = new_cond
+            c["c_crossattn"] = modified_cond
 
-            # Also update pooled if available and SDXL
-            if target_pooled is not None and "y" in c:
-                new_pooled = target_pooled.to(device=device, dtype=dtype)
-                if new_pooled.shape[0] != c["y"].shape[0]:
-                    B = c["y"].shape[0]
-                    pattern = [B] + [1] * (new_pooled.ndim - 1)
-                    new_pooled = new_pooled.repeat(*pattern)
-                c["y"] = new_pooled
+            # NOTE: Pooled output (y) swapping disabled - testing if it improves A1111 parity
+            # The pooled output might have different timing characteristics that affect
+            # how the style "settles" in later steps.
+            # if target_pooled is not None and "y" in c:
+            #     orig_y = c["y"]
+            #     if orig_y.shape[-1] == 2816:  # SDXL
+            #         new_pooled = target_pooled.to(device=device, dtype=dtype).clone()
+            #         modified_y = orig_y.clone()
+            #
+            #         # Only swap positive positions
+            #         for batch_idx, cond_type in enumerate(cond_or_uncond):
+            #             if cond_type == 0 and batch_idx < modified_y.shape[0]:
+            #                 # Replace first 1280 dims with our pooled output
+            #                 modified_y[batch_idx, :1280] = new_pooled[0]
+            #
+            #         c["y"] = modified_y
+            #         logging.debug(f"  Also swapped pooled output (first 1280 of y)")
+
+            # Log that swap happened
+            num_positive = sum(1 for x in cond_or_uncond if x == 0)
+            logging.info(f"  Swapped {num_positive} positive conditioning slots")
 
         # Call the actual model
         return apply_model_func(input_x, timestep, **c)

@@ -293,10 +293,12 @@ class A1111PromptNode:
             all_tokens = clip.tokenize("")
 
         return self._encode_with_direct_scaling(
-            clip, all_tokens, normalization, is_sdxl
+            clip, all_tokens, normalization, is_sdxl, debug
         )
 
-    def _encode_with_direct_scaling(self, clip, tokens, normalization, is_sdxl):
+    def _encode_with_direct_scaling(
+        self, clip, tokens, normalization, is_sdxl, debug=False
+    ):
         """Encode with direct scaling (anti-burn) like A1111's EmphasisOriginalNoNorm."""
         clip.load_model()
         clip.cond_stage_model.reset_clip_options()
@@ -330,10 +332,10 @@ class A1111PromptNode:
 
         if is_sdxl:
             cond = self._apply_direct_scaling_sdxl(
-                cond, weights_l, weights_g, normalization
+                cond, weights_l, weights_g, normalization, debug
             )
         else:
-            cond = self._apply_direct_scaling(cond, weights, normalization)
+            cond = self._apply_direct_scaling(cond, weights, normalization, debug)
 
         if pooled is not None:
             pooled = pooled.to(model_management.intermediate_device())
@@ -365,41 +367,93 @@ class A1111PromptNode:
             neutralized.append(new_batch)
         return neutralized
 
-    def _apply_direct_scaling(self, cond, weights, normalization):
-        """Apply A1111-style direct scaling to embeddings."""
+    def _apply_direct_scaling(self, cond, weights, normalization, debug=False):
+        """
+        Apply A1111-style direct scaling to embeddings.
+
+        Uses proper tensor broadcasting like A1111's emphasis.py:
+        self.z = self.z * self.multipliers.reshape(self.multipliers.shape + (1,)).expand(self.z.shape)
+
+        Note: weights is List[List[float]] where each inner list is a BREAK chunk.
+        cond shape is [batch, seq, dim] where seq = sum of all chunk lengths.
+        We need to flatten weights to match the sequence dimension.
+        """
         cond = cond.clone()
 
-        if normalization:
-            mean_before = cond.mean()
+        # Flatten weights from all chunks into a single sequence
+        # weights is List[List[float]] - one list per BREAK chunk (or token batch)
+        flat_weights = []
+        for chunk_weights in weights:
+            flat_weights.extend(chunk_weights)
 
-        for batch_idx, batch_weights in enumerate(weights):
-            if batch_idx >= cond.shape[0]:
-                break
-            for token_idx, weight in enumerate(batch_weights):
-                if token_idx >= cond.shape[1]:
-                    break
-                if weight != 1.0:
-                    cond[batch_idx, token_idx] *= weight
+        # Match to cond's sequence length
+        seq_len = cond.shape[1]
+        if len(flat_weights) < seq_len:
+            flat_weights = flat_weights + [1.0] * (seq_len - len(flat_weights))
+        elif len(flat_weights) > seq_len:
+            flat_weights = flat_weights[:seq_len]
+
+        # Create tensor matching cond's batch dimension [batch, seq]
+        batch_size = cond.shape[0]
+        multipliers = torch.tensor(
+            [flat_weights] * batch_size, device=cond.device, dtype=cond.dtype
+        )
+
+        # Debug: show weight statistics
+        if debug:
+            non_unity = [w for w in flat_weights if abs(w - 1.0) > 0.001]
+            if non_unity:
+                logger.info(
+                    f"[A1111 Prompt] Emphasis weights applied: {len(non_unity)} tokens modified"
+                )
+                logger.info(
+                    f"[A1111 Prompt]   Weight range: [{min(non_unity):.3f}, {max(non_unity):.3f}]"
+                )
+                # Show first few modified weights with positions
+                weight_samples = [
+                    (i, w) for i, w in enumerate(flat_weights) if abs(w - 1.0) > 0.001
+                ][:5]
+                logger.info(f"[A1111 Prompt]   Sample weights: {weight_samples}")
+            else:
+                logger.info(f"[A1111 Prompt] No emphasis weights (all tokens = 1.0)")
 
         if normalization:
-            mean_after = cond.mean()
-            if mean_after.abs() > 1e-8:
-                cond *= mean_before / mean_after
+            # A1111 EmphasisOriginal: preserve original mean
+            original_mean = cond.mean()
+
+        # A1111-style broadcasting: expand [batch, seq] -> [batch, seq, dim]
+        multipliers = multipliers.unsqueeze(-1).expand_as(cond)
+        cond = cond * multipliers
+
+        if normalization:
+            new_mean = cond.mean()
+            if new_mean.abs() > 1e-8:
+                scale_factor = original_mean / new_mean
+                cond = cond * scale_factor
+                if debug:
+                    logger.info(
+                        f"[A1111 Prompt] Normalization applied: scale={scale_factor.item():.4f}"
+                    )
 
         return cond
 
-    def _apply_direct_scaling_sdxl(self, cond, weights_l, weights_g, normalization):
+    def _apply_direct_scaling_sdxl(
+        self, cond, weights_l, weights_g, normalization, debug=False
+    ):
         """SDXL output is [batch, seq, 2048] where 2048 = 768 (L) + 1280 (G)."""
         if cond.shape[-1] != 2048:
             # Fallback for non-SDXL models (e.g. SD3) that might trigger is_sdxl check
             logger.warning(
                 f"[A1111 Prompt] Unexpected embedding dimension {cond.shape[-1]} (expected 2048 for SDXL). Applying symmetric scaling."
             )
-            # We don't know where the split is, so we just apply weights_g (usually the main one) or weights_l?
-            # Or effectively average them?
-            # Safest fallback: use 'g' weights if available, as that's usually the primary semantic encoder in ComfyUI flows
             return self._apply_direct_scaling(
-                cond, weights_g if weights_g else weights_l, normalization
+                cond, weights_g if weights_g else weights_l, normalization, debug
+            )
+
+        if debug:
+            logger.info(f"[A1111 Prompt] SDXL scaling: cond shape {cond.shape}")
+            logger.info(
+                f"[A1111 Prompt]   Applying weights to CLIP-L (768 dims) AND CLIP-G (1280 dims)"
             )
 
         cond = cond.clone()
@@ -407,7 +461,14 @@ class A1111PromptNode:
         cond_l = cond[:, :, :dim_l]
         cond_g = cond[:, :, dim_l:]
 
-        cond_l = self._apply_direct_scaling(cond_l, weights_l, normalization)
+        # A1111 scales BOTH CLIP-L and CLIP-G embeddings
+        if debug:
+            logger.info(f"[A1111 Prompt]   Scaling CLIP-L...")
+        cond_l = self._apply_direct_scaling(cond_l, weights_l, normalization, debug)
+        if debug:
+            logger.info(f"[A1111 Prompt]   Scaling CLIP-G...")
+        cond_g = self._apply_direct_scaling(cond_g, weights_g, normalization, debug)
+
         return torch.cat([cond_l, cond_g], dim=-1)
 
 

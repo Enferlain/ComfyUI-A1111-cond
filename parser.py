@@ -294,30 +294,18 @@ def _at_step(step: int, total_steps: int, tree) -> str:
                         yield ""
 
         def emphasized(self, args):
-            # Keep emphasis syntax in output
-            if len(args) == 1:
-                # [text] de-emphasis - preserve brackets for tokenizer
-                yield "["
-                for a in args:
+            # Grammar uses !emphasized so literal parens/brackets are already in args
+            # We just yield them as-is without adding extra parens
+            for a in args:
+                if isinstance(a, str):
                     yield a
-                yield "]"
-            elif len(args) >= 2:
-                # (text:weight) - preserve weight
-                yield "("
-                for a in args:
-                    if isinstance(a, str):
-                        yield a
-                    elif isinstance(a, lark.Token):
-                        yield str(a)
-                    elif hasattr(a, "__iter__"):
-                        for item in a:
-                            yield item
-                    elif a is not None:
-                        yield str(a)
-                yield ")"
-            else:
-                for a in args:
-                    yield a
+                elif isinstance(a, lark.Token):
+                    yield str(a)
+                elif hasattr(a, "__iter__"):
+                    for item in a:
+                        yield item
+                elif a is not None:
+                    yield str(a)
 
         def plain(self, args):
             yield args[0].value if args else ""

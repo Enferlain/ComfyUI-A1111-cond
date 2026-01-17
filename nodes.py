@@ -260,7 +260,7 @@ class A1111PromptNode:
             # No BREAK, encode normally
             tokens = clip.tokenize(break_segments[0])
             return self._encode_with_direct_scaling(
-                clip, tokens, normalization, is_sdxl
+                clip, tokens, normalization, is_sdxl, debug
             )
 
         # Multiple segments - tokenize each separately for isolation

@@ -53,6 +53,7 @@ class A1111PromptNode:
     RETURN_NAMES = ("conditioning", "model")
     FUNCTION = "encode"
     CATEGORY = "conditioning/advanced"
+    OUTPUT_NODE = True
 
     def encode(
         self, clip, text, model=None, steps=20, normalization=False, debug=False
@@ -177,7 +178,10 @@ class A1111PromptNode:
             cond, pooled = self._encode_with_break_isolation(
                 clip, prompt_text, normalization, is_sdxl, debug
             )
-            return ([[cond, {"pooled_output": pooled}]], model)
+            return {
+                "ui": {"text": [text]},
+                "result": ([[cond, {"pooled_output": pooled}]], model),
+            }
 
         # Use step-based conditioning for strict A1111 parity
         encoded_cache = {}
@@ -237,7 +241,7 @@ class A1111PromptNode:
                     f"[A1111 Prompt] Set up step conditioning on model for {len(step_embeddings)} steps"
                 )
 
-        return (conditioning, model)
+        return {"ui": {"text": [text]}, "result": (conditioning, model)}
 
     def _encode_with_break_isolation(
         self, clip, prompt_text, normalization, is_sdxl, debug

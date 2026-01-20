@@ -32,6 +32,19 @@ pip install lark
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
 - **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it. Should use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to preserve weighting emphasis in the a1111 snytax.
 
+### Token Counter
+
+The node displays a **live token count** in the header, showing tokens per 77-token sequence:
+
+```
+45/75 | 32/75
+```
+
+- Each number shows tokens in that sequence (max 75 usable per sequence)
+- BREAK creates new sequences: `dog, cat BREAK bird` → `6/75 | 1/75`
+- Updates in real-time as you type
+- Uses ComfyUI's native tokenizer for accurate counts
+
 ### Scheduling
 
 | Syntax          | Meaning                                  |

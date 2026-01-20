@@ -12,13 +12,25 @@ pip install lark
 
 ## Features
 
+### Positive prompt node
+
+<img width="790" height="527" alt="image" src="https://github.com/user-attachments/assets/67c12e99-cf35-4d2e-af84-0e258fa6915d" />
+
+### Negative prompt node
+
+<img width="363" height="241" alt="image" src="https://github.com/user-attachments/assets/ba1da788-dc47-4939-bcbe-d1699ea9f872" />
+
+### Full setup with optional TIPO support
+
+<img width="1755" height="813" alt="image" src="https://github.com/user-attachments/assets/d430189f-6f50-42e9-8503-afa8d6d7db8a" />
+
 ### Core Features
 
 - **Hard Chunking (The Sandbox)**: Tokens split into 75-token chunks with padding, preventing concept bleeding
 - **Direct Scaling (Anti-Burn)**: Uses `z * weight` instead of Comfy's interpolation, avoiding artifacts at high weights
 - **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
-- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it.
+- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it. Should use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to preserve weighting emphasis in the a1111 snytax.
 
 ### Scheduling
 

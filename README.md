@@ -30,7 +30,7 @@ pip install lark
 - **Direct Scaling (Anti-Burn)**: Uses `z * weight` instead of Comfy's interpolation, avoiding artifacts at high weights
 - **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
-- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it.
+- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it. Should use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to preserve weighting emphasis in the a1111 snytax.
 
 ### Scheduling
 

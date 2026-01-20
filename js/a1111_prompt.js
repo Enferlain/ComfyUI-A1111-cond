@@ -97,3 +97,81 @@ app.registerExtension({
     }
   },
 });
+
+/**
+ * Token Counter Extension
+ *
+ * Displays token counts per 77-token sequence in the node header.
+ * Shows BREAK segments distinctly: "6/75 | 1/75" means 2 sequences.
+ * Updates in real-time as the user types.
+ */
+app.registerExtension({
+  name: "A1111PromptNode.TokenCounter",
+
+  async beforeRegisterNodeDef(nodeType, nodeData, app) {
+    if (
+      nodeData.name !== "A1111Prompt" &&
+      nodeData.name !== "A1111PromptNegative"
+    )
+      return;
+
+    const onDrawForeground = nodeType.prototype.onDrawForeground;
+    nodeType.prototype.onDrawForeground = function (ctx) {
+      if (onDrawForeground) onDrawForeground.apply(this, arguments);
+
+      // Only show if sequences are available (not null/unavailable)
+      if (this._tokenInfo?.sequences && Array.isArray(this._tokenInfo.sequences)) {
+        const seqs = this._tokenInfo.sequences;
+        const text = seqs.map((s) => `${s}/75`).join(" | ");
+
+        ctx.save();
+        ctx.font = "11px monospace";
+        ctx.fillStyle = "#888";
+        ctx.textAlign = "right";
+        ctx.fillText(text, this.size[0] - 10, -6);
+        ctx.restore();
+      }
+    };
+  },
+
+  async nodeCreated(node) {
+    if (
+      node.comfyClass !== "A1111Prompt" &&
+      node.comfyClass !== "A1111PromptNegative"
+    )
+      return;
+
+    const textWidget = node.widgets?.find((w) => w.name === "text");
+    if (!textWidget) return;
+
+    node._tokenInfo = { sequences: [0], estimated: true };
+
+    let timeout;
+    const updateTokenCount = async (text) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        try {
+          const response = await fetch("/a1111_prompt/tokenize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          node._tokenInfo = await response.json();
+          node.setDirtyCanvas(true, false);
+        } catch (e) {
+          // Silently ignore errors, just keep old count
+        }
+      }, 300); // 300ms debounce
+    };
+
+    // Hook into widget callback for text changes
+    const origCallback = textWidget.callback;
+    textWidget.callback = function (value) {
+      origCallback?.apply(this, arguments);
+      updateTokenCount(value);
+    };
+
+    // Initial count
+    updateTokenCount(textWidget.value || "");
+  },
+});

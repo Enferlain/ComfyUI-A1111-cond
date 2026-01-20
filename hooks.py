@@ -12,8 +12,8 @@ The key insight is that the `model_function_wrapper` in model_options receives
 the timestep and conditioning, allowing us to swap conditioning per-step.
 """
 
+import math
 import torch
-import logging
 
 
 class StepConditioningHandler:
@@ -107,7 +107,12 @@ class StepConditioningHandler:
         # IMPORTANT: The batch contains both positive and negative conditioning.
         # cond_or_uncond tells us which is which: 0=positive, 1=negative
         # We only swap the POSITIVE conditioning, keep negative as-is for CFG to work.
-        if target_cond is not None and "c_crossattn" in c:
+        #
+        # When positive and negative have very different sequence lengths (e.g., 385 vs 77),
+        # ComfyUI can't batch them together and processes them separately. Skip the swap
+        # entirely when processing negative-only batches.
+        has_positive = any(ct == 0 for ct in cond_or_uncond)
+        if target_cond is not None and "c_crossattn" in c and has_positive:
             orig_cond = c["c_crossattn"]
             device = orig_cond.device
             dtype = orig_cond.dtype
@@ -115,33 +120,43 @@ class StepConditioningHandler:
             # Prepare swapped conditioning
             new_cond = target_cond.to(device=device, dtype=dtype).clone()
 
-            # Handle sequence length mismatch first
-            if new_cond.shape[1] != orig_cond.shape[1]:
-                logging.info(
-                    f"  Sequence length mismatch: target={new_cond.shape[1]}, orig={orig_cond.shape[1]}"
-                )
-                if new_cond.shape[1] < orig_cond.shape[1]:
-                    pad_size = orig_cond.shape[1] - new_cond.shape[1]
-                    padding = torch.zeros(
-                        new_cond.shape[0],
-                        pad_size,
-                        new_cond.shape[2],
-                        device=device,
-                        dtype=dtype,
-                    )
-                    new_cond = torch.cat([new_cond, padding], dim=1)
+            # Handle sequence length mismatch using LCM-based repeat padding
+            # This matches ldm_patched/ComfyUI's CONDCrossAttn.concat() behavior
+            # and A1111's default handling (padding with repeat doesn't change result)
+            target_seq_len = new_cond.shape[1]
+            orig_seq_len = orig_cond.shape[1]
+
+            if target_seq_len != orig_seq_len:
+                # Use LCM like ldm_patched does for proper batching
+                lcm_len = math.lcm(target_seq_len, orig_seq_len)
+
+                # Expand orig_cond by repeating to LCM length
+                if orig_seq_len < lcm_len:
+                    repeat_factor = lcm_len // orig_seq_len
+                    expanded_orig = orig_cond.repeat(1, repeat_factor, 1)
                 else:
-                    new_cond = new_cond[:, : orig_cond.shape[1], :]
+                    expanded_orig = orig_cond
 
-            # Create a copy of original conditioning to modify
-            modified_cond = orig_cond.clone()
+                # Expand new_cond by repeating to LCM length
+                if target_seq_len < lcm_len:
+                    repeat_factor = lcm_len // target_seq_len
+                    expanded_new = new_cond.repeat(1, repeat_factor, 1)
+                else:
+                    expanded_new = new_cond
 
-            # Only swap positive conditioning positions, keep negative as-is
-            # cond_or_uncond: 0=positive (cond), 1=negative (uncond)
-            for batch_idx, cond_type in enumerate(cond_or_uncond):
-                if cond_type == 0:  # This is positive conditioning
-                    # Swap this position with our target
-                    modified_cond[batch_idx] = new_cond[0]  # new_cond is [1, seq, dim]
+                # Create output tensor starting with expanded original
+                modified_cond = expanded_orig.clone()
+
+                # Swap only positive conditioning positions with our step embedding
+                for batch_idx, cond_type in enumerate(cond_or_uncond):
+                    if cond_type == 0:  # Positive conditioning
+                        modified_cond[batch_idx] = expanded_new[0]
+            else:
+                # Lengths match - simple case
+                modified_cond = orig_cond.clone()
+                for batch_idx, cond_type in enumerate(cond_or_uncond):
+                    if cond_type == 0:
+                        modified_cond[batch_idx] = new_cond[0]
 
             # Create modified c dict with swapped conditioning
             c = dict(c)

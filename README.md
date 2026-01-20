@@ -18,6 +18,7 @@ pip install lark
 - **Direct Scaling (Anti-Burn)**: Uses `z * weight` instead of Comfy's interpolation, avoiding artifacts at high weights
 - **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
+- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it.
 
 ### Scheduling
 
@@ -71,7 +72,16 @@ This alternates until 60%, then switches to just "as109".
 
 ## Usage
 
-### Inputs
+This pack provides **two nodes**:
+
+| Node                              | Use Case                                          |
+| --------------------------------- | ------------------------------------------------- |
+| **A1111 Style Prompt**            | Positive prompt (supports alternation/scheduling) |
+| **A1111 Style Prompt (Negative)** | Negative prompt (no alternation support)          |
+
+### A1111 Style Prompt (Positive)
+
+#### Inputs
 
 | Input         | Type   | Required | Description                                      |
 | ------------- | ------ | -------- | ------------------------------------------------ |
@@ -82,22 +92,39 @@ This alternates until 60%, then switches to just "as109".
 | normalization | BOOL   | No       | Enable EmphasisOriginalNoNorm                    |
 | debug         | BOOL   | No       | Show detailed schedule information               |
 
-### Outputs
+#### Outputs
 
 | Output       | Type         | Description              |
 | ------------ | ------------ | ------------------------ |
 | conditioning | CONDITIONING | The encoded conditioning |
 | model        | MODEL        | Model with step wrapper  |
 
+### A1111 Style Prompt (Negative)
+
+#### Inputs
+
+Same as positive, but **without MODEL input**.
+
+#### Outputs
+
+| Output       | Type         | Description              |
+| ------------ | ------------ | ------------------------ |
+| conditioning | CONDITIONING | The encoded conditioning |
+
+> **Note:** If scheduling/alternation syntax is used in the negative node, it will use the **first step's prompt only** and log an informational message.
+
 ### Workflow
 
-For **alternation and per-step scheduling** to work correctly, you must connect the MODEL input:
+For **alternation and per-step scheduling** to work correctly, you must connect the MODEL input on the positive node:
 
 ```
         ┌─────────────────────────────┐
-MODEL ──┤                             ├──► MODEL ──► Sampler
-CLIP  ──┤   [A1111 Style Prompt]      ├
-        │                             ├──► CONDITIONING ──► Sampler
+MODEL ──┤  [A1111 Style Prompt]       ├──► MODEL ──────────► Sampler
+CLIP  ──┤                             ├──► CONDITIONING ──► (positive)
+        └─────────────────────────────┘
+
+        ┌─────────────────────────────┐
+CLIP  ──┤  [A1111 Style Prompt (Neg)] ├──► CONDITIONING ──► (negative)
         └─────────────────────────────┘
 ```
 
@@ -162,10 +189,11 @@ The node generates the correct prompt text for each step, matching A1111's behav
 
 ### Known Limitations
 
-While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ slightly due to architectural differences:
+1. **Alternation is positive-only**: Only the main node (with MODEL input) supports alternation. The negative node will use the first step's prompt if scheduling syntax is present.
 
-- A1111 applies conditioning at the CFGDenoiser level (before model call)
-- This node applies conditioning via model wrapper (during model call)
+2. **Visual parity**: While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ due to architectural differences:
+   - A1111 applies conditioning at the CFGDenoiser level (before model call)
+   - This node applies conditioning via model wrapper (during model call)
 
 Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control exactly when alternation stops.
 

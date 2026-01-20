@@ -45,6 +45,18 @@ The node displays a **live token count** in the header, showing tokens per 77-to
 - Updates in real-time as you type
 - Uses ComfyUI's native tokenizer for accurate counts
 
+**Warning Colors:**
+
+- **Gray** (default): Normal prompt length
+- **Yellow/Orange**: 300+ total tokens (4+ chunks) - getting long
+- **Red**: 450+ total tokens (6+ chunks) - may impact quality/memory
+
+**Boundary Markers:**
+
+- Orange vertical bars appear in the text where 75-token chunk boundaries fall
+- Blue vertical bars mark BREAK positions
+- Markers align with word boundaries and update in real-time
+
 ### Scheduling
 
 | Syntax          | Meaning                                  |

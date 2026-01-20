@@ -5,6 +5,9 @@
 - [x] Token counter in node header (`45/75 | 32/75`)
 - [x] BREAK-aware sequence counting
 - [x] Real tokenization (no estimation)
+- [x] Warning colors for long prompts (yellow 300+, red 450+ tokens)
+- [x] Visual boundary markers (orange bars at 75-token boundaries)
+- [x] BREAK position markers (blue bars)
 
 ---
 
@@ -30,14 +33,14 @@
 
 ### Visual Boundaries
 
-- [ ] Show where 75-token boundary falls inside the text
-- [ ] Subtle visual marker (line, gradient, or highlight)
-- [ ] Requires API to return character positions of boundaries
+- [x] Show where 75-token boundary falls inside the text
+- [x] Subtle visual marker (vertical bar overlay)
+- [x] API returns character positions of boundaries
 
 ### Display Improvements
 
 - [ ] Show total tokens: `45/75 | 32/75 (77 total)`
-- [ ] Subtle color when approaching limit (65+ tokens)
+- [x] Warning colors for long prompts (yellow 300+, red 450+ tokens)
 - [ ] Tooltip with detailed breakdown on hover
 
 ---

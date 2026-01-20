@@ -12,6 +12,18 @@ pip install lark
 
 ## Features
 
+### Positive prompt node
+
+<img width="790" height="527" alt="image" src="https://github.com/user-attachments/assets/67c12e99-cf35-4d2e-af84-0e258fa6915d" />
+
+### Negative prompt node
+
+<img width="363" height="241" alt="image" src="https://github.com/user-attachments/assets/ba1da788-dc47-4939-bcbe-d1699ea9f872" />
+
+### Full setup with optional TIPO support
+
+<img width="1558" height="802" alt="image" src="https://github.com/user-attachments/assets/3a6e5603-52d2-47df-8856-34e0770694cc" />
+
 ### Core Features
 
 - **Hard Chunking (The Sandbox)**: Tokens split into 75-token chunks with padding, preventing concept bleeding

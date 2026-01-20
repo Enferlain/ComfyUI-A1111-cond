@@ -22,7 +22,7 @@ pip install lark
 
 ### Full setup with optional TIPO support
 
-<img width="1558" height="802" alt="image" src="https://github.com/user-attachments/assets/3a6e5603-52d2-47df-8856-34e0770694cc" />
+<img width="1755" height="813" alt="image" src="https://github.com/user-attachments/assets/d430189f-6f50-42e9-8503-afa8d6d7db8a" />
 
 ### Core Features
 

@@ -88,36 +88,44 @@
 
 ---
 
-## 📁 Code Organization
+## ✅ Code Organization (Completed)
 
 ### File Structure Refactor
+
+- [x] Split `nodes.py` → `nodes/prompt_node.py` + `nodes/negative_node.py`
+- [x] Split `parser.py` → `parser/grammar.py` + `parser/scheduler.py` + `parser/wildcards.py`
+- [x] Split `api.py` → `api/tokenize.py` + `api/autocomplete.py`
+- [x] Split `a1111_prompt.js` → Added `tokenCounter.js` + `autocomplete.js` + `syntaxHighlight.js`
+- [x] Created `data/tags/` and `data/wildcards/` directories
 
 ```
 A1111_Prompt_Node/
 ├── __init__.py
 ├── nodes/
 │   ├── __init__.py
-│   ├── prompt_node.py      # Main node
-│   └── negative_node.py    # Negative variant
+│   ├── prompt_node.py      # Main node ✓
+│   └── negative_node.py    # Negative variant ✓
 ├── parser/
 │   ├── __init__.py
-│   ├── grammar.py          # Lark grammar
-│   ├── scheduler.py        # Step scheduling
-│   └── wildcards.py        # Wildcard expansion
+│   ├── grammar.py          # Lark grammar ✓
+│   ├── scheduler.py        # Step scheduling ✓
+│   └── wildcards.py        # Wildcard expansion (placeholder) ✓
 ├── api/
 │   ├── __init__.py
-│   ├── tokenize.py         # Token counter endpoint
-│   └── autocomplete.py     # Tag autocomplete endpoint
+│   ├── tokenize.py         # Token counter endpoint ✓
+│   └── autocomplete.py     # Tag autocomplete endpoint (placeholder) ✓
 ├── js/
-│   ├── a1111_prompt.js     # Main extension
-│   ├── tokenCounter.js     # Token counter UI
-│   ├── autocomplete.js     # Autocomplete UI
-│   └── syntaxHighlight.js  # Syntax highlighting
+│   ├── a1111_prompt.js     # Main extension ✓
+│   ├── tokenCounter.js     # Token counter UI ✓
+│   ├── autocomplete.js     # Autocomplete UI (placeholder) ✓
+│   └── syntaxHighlight.js  # Syntax highlighting (placeholder) ✓
 ├── data/
-│   ├── tags/               # Tag databases
-│   └── wildcards/          # Default wildcards
-└── hooks.py                # ComfyUI hooks
+│   ├── tags/               # Tag databases ✓
+│   └── wildcards/          # Default wildcards ✓
+└── hooks.py                # ComfyUI hooks ✓
 ```
+
+> **Note:** Old files (`nodes.py`, `parser.py`, `api.py`) can be safely deleted after verifying the new structure works.
 
 ---
 

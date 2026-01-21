@@ -46,9 +46,11 @@ async def tokenize_prompt(request):
 
         sequences = []
         boundaries = []
+        tokens_detail = []  # Per-token info: [{text, id, chunk_idx}, ...]
 
         # Track position in original text
         current_text_offset = 0
+        current_chunk_idx = 0
 
         for seg_idx, segment in enumerate(break_segments):
             # Find where this segment starts in the original text
@@ -61,6 +63,7 @@ async def tokenize_prompt(request):
 
             if not segment_text:
                 sequences.append(0)
+                current_chunk_idx += 1
             else:
                 # Word-by-word tokenization with position tracking
                 # Split into words while preserving positions
@@ -98,6 +101,18 @@ async def tokenize_prompt(request):
                         boundaries.append({"char_pos": boundary_char, "type": "chunk"})
 
                         current_chunk_tokens = 0
+                        current_chunk_idx += 1
+
+                    # Decode each token to get the text representation
+                    for token_id in word_tokens:
+                        token_text = hf_tokenizer.decode([token_id])
+                        tokens_detail.append(
+                            {
+                                "text": token_text,
+                                "id": token_id,
+                                "chunk": current_chunk_idx,
+                            }
+                        )
 
                     current_chunk_tokens += word_token_count
 
@@ -106,6 +121,7 @@ async def tokenize_prompt(request):
                     chunk_sequences.append(current_chunk_tokens)
 
                 sequences.extend(chunk_sequences if chunk_sequences else [0])
+                current_chunk_idx += 1
 
             # Move past this segment
             current_text_offset = segment_start + len(segment)
@@ -115,11 +131,36 @@ async def tokenize_prompt(request):
                 boundaries.append(
                     {"char_pos": break_matches[seg_idx].start(), "type": "break"}
                 )
+                # Add BREAK marker to tokens
+                tokens_detail.append(
+                    {
+                        "text": "BREAK",
+                        "id": None,
+                        "chunk": current_chunk_idx - 1,
+                        "is_break": True,
+                    }
+                )
 
         if not sequences:
             sequences = [0]
 
-        return web.json_response({"sequences": sequences, "boundaries": boundaries})
+        # Calculate stats
+        word_count = len(text.split())
+        char_count = len(text)
+
+        return web.json_response(
+            {
+                "sequences": sequences,
+                "boundaries": boundaries,
+                "tokens": tokens_detail,
+                "stats": {
+                    "total_tokens": sum(sequences),
+                    "chunks": len(sequences),
+                    "words": word_count,
+                    "characters": char_count,
+                },
+            }
+        )
     except Exception as e:
         import traceback
 

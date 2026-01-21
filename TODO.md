@@ -39,9 +39,9 @@
 
 ### Display Improvements
 
-- [ ] Show total tokens: `45/75 | 32/75 (77 total)`
+- [x] Show total tokens: `45/75 | 32/75 (77 total)`
 - [x] Warning colors for long prompts (yellow 300+, red 450+ tokens)
-- [ ] Tooltip with detailed breakdown on hover
+- [x] Tooltip with detailed breakdown (click to open)
 
 ---
 

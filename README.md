@@ -44,6 +44,7 @@ The node displays a **live token count** in the header, showing tokens per 77-to
 - BREAK creates new sequences: `dog, cat BREAK bird` → `6/75 | 1/75`
 - Updates in real-time as you type
 - Uses ComfyUI's native tokenizer for accurate counts
+- Clickable for breakdown and input ids
 
 **Warning Colors:**
 

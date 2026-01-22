@@ -23,6 +23,94 @@ def get_tokenizer():
     return _tokenizer
 
 
+def strip_a1111_syntax(text: str) -> str:
+    r"""
+    Strip A1111 emphasis/scheduling syntax from text, leaving only tokenizable content.
+
+    This matches what ComfyUI's clip.tokenize() does internally when it parses
+    emphasis syntax like (word:1.2) - only the word gets tokenized, not the
+    parentheses or weight numbers.
+
+    For alternation/scheduling, keeps the LONGEST option to show worst-case token count.
+
+    Handles:
+    - Emphasis: (word:1.2) -> word, (word) -> word
+    - Negative emphasis: [word] -> word, [word:0.5] -> word
+    - Scheduling: [from:to:when] -> max(from, to) (keeps longer one)
+    - Alternation: [A|B|C] -> max(A, B, C) (keeps longest option)
+    - Escaped chars: \( \) \[ \] -> ( ) [ ]
+    """
+    # First, handle escaped characters - replace with placeholders
+    text = text.replace("\\(", "\x00LPAREN\x00")
+    text = text.replace("\\)", "\x00RPAREN\x00")
+    text = text.replace("\\[", "\x00LBRACK\x00")
+    text = text.replace("\\]", "\x00RBRACK\x00")
+
+    # Handle bracket expressions: [A|B|C] or [from:to:when]
+    # Keep the LONGEST option for worst-case token counting
+    def keep_longest_option(match):
+        content = match.group(1)
+
+        if "|" in content:
+            # It's alternation [A|B|C] - find longest option
+            options = content.split("|")
+            # Remove any trailing :number from last option (scheduled alternation)
+            # e.g., [A|B:0.5] -> options = ["A", "B:0.5"]
+            last = options[-1]
+            if ":" in last:
+                # Check if it ends with :number
+                colon_match = re.match(r"^(.+?)::?[\d.]+$", last)
+                if colon_match:
+                    options[-1] = colon_match.group(1)
+
+            # Return the longest option
+            return max(options, key=len)
+
+        elif ":" in content:
+            # It's scheduling [from:to:when] - keep longer of from/to
+            parts = content.split(":")
+            if len(parts) >= 2:
+                # parts[0] = from, parts[1] = to, parts[2+] = when (numbers)
+                from_part = parts[0]
+                to_part = parts[1] if len(parts) > 1 else ""
+                # Return the longer of from/to
+                return from_part if len(from_part) >= len(to_part) else to_part
+            return content
+
+        else:
+            # Simple bracket emphasis [word] - just return content
+            return content
+
+    # Process bracket expressions - non-greedy match for innermost brackets
+    # Repeat to handle nested structures
+    prev_text = None
+    while prev_text != text:
+        prev_text = text
+        text = re.sub(r"\[([^\[\]]*)\]", keep_longest_option, text)
+
+    # Remove weight specifications: :1.2) at end of emphasis
+    # This handles (word:1.2)
+    text = re.sub(r":[\d.]+(?=\))", "", text)
+
+    # Remove any remaining weight specs that might be floating
+    text = re.sub(r":[\d.]+(?=\s|$)", "", text)
+
+    # Remove parentheses (they're just syntax markers now)
+    text = text.replace("(", " ")
+    text = text.replace(")", " ")
+
+    # Restore escaped characters as literal chars
+    text = text.replace("\x00LPAREN\x00", "(")
+    text = text.replace("\x00RPAREN\x00", ")")
+    text = text.replace("\x00LBRACK\x00", "[")
+    text = text.replace("\x00RBRACK\x00", "]")
+
+    # Clean up multiple spaces
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+
 @server.PromptServer.instance.routes.post("/a1111_prompt/tokenize")
 async def tokenize_prompt(request):
     """
@@ -65,12 +153,22 @@ async def tokenize_prompt(request):
                 sequences.append(0)
                 current_chunk_idx += 1
             else:
+                # FIRST: Strip A1111 syntax from entire segment
+                # This handles bracket expressions with spaces like [A|B C|D]
+                clean_segment = strip_a1111_syntax(segment_text)
+
+                if not clean_segment:
+                    sequences.append(0)
+                    current_chunk_idx += 1
+                    current_text_offset = segment_start + len(segment)
+                    continue
+
                 # Word-by-word tokenization with position tracking
-                # Split into words while preserving positions
+                # Split into words from the CLEANED segment
                 word_pattern = r"(\S+)"
                 words_with_pos = []
 
-                for match in re.finditer(word_pattern, segment):
+                for match in re.finditer(word_pattern, clean_segment):
                     word = match.group(1)
                     # Position relative to segment start
                     word_start = match.start()
@@ -83,7 +181,7 @@ async def tokenize_prompt(request):
                 chunk_sequences = []
 
                 for word, word_start_rel, word_end_rel in words_with_pos:
-                    # Tokenize this word (without special tokens)
+                    # Words are already from the cleaned segment, just tokenize directly
                     word_tokens = hf_tokenizer.encode(word, add_special_tokens=False)
                     word_token_count = len(word_tokens)
 

@@ -45,24 +45,24 @@ export function createTooltipElement() {
   backdropElement.onclick = hideTokenTooltip;
   document.body.appendChild(backdropElement);
 
-  // Create tooltip
+  // Create tooltip with theme-aware colors
   tooltipElement = document.createElement("div");
   tooltipElement.className = "a1111-token-tooltip";
   tooltipElement.style.cssText = `
     position: fixed;
     z-index: 10000;
-    background: #1a1a2e;
-    border: 1px solid #444;
+    background: var(--comfy-menu-bg, #353535);
+    border: 2px solid var(--border-color, #555);
     border-radius: 8px;
     padding: 12px;
     font-family: monospace;
     font-size: 12px;
-    color: #eee;
+    color: var(--fg-color, #eee);
     max-width: 500px;
     max-height: 400px;
     overflow-y: auto;
     display: none;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1);
   `;
   document.body.appendChild(tooltipElement);
   return tooltipElement;
@@ -87,13 +87,13 @@ export function showTokenTooltip(node, mouseEvent, graphCanvas) {
       <button id="a1111-tooltip-close" style="
         background: none;
         border: none;
-        color: #888;
+        color: var(--descrip-text, #888);
         font-size: 18px;
         cursor: pointer;
         padding: 0 4px;
       ">&times;</button>
     </div>
-    <div style="display: flex; gap: 20px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #444;">
+    <div style="display: flex; gap: 20px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color, #444);">
       <div><strong>Tokens</strong><br><span style="font-size: 18px; color: #3498db;">${info.stats.total_tokens}</span></div>
       <div><strong>Characters</strong><br><span style="font-size: 18px; color: #2ecc71;">${info.stats.characters}</span></div>
       <div><strong>Words</strong><br><span style="font-size: 18px; color: #f39c12;">${info.stats.words}</span></div>
@@ -103,7 +103,7 @@ export function showTokenTooltip(node, mouseEvent, graphCanvas) {
 
   // Colored tokens section
   html += `<div style="margin-bottom: 8px;"><strong>Tokens</strong></div>`;
-  html += `<div style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; padding: 8px; background: #0d0d1a; border-radius: 4px; line-height: 1.8;">`;
+  html += `<div style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; padding: 8px; background: var(--comfy-input-bg, #222); border-radius: 4px; line-height: 1.8;">`;
 
   for (const token of info.tokens) {
     if (token.is_break) {
@@ -144,17 +144,18 @@ export function showTokenTooltip(node, mouseEvent, graphCanvas) {
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
       <strong>Input IDs</strong>
       <button id="a1111-tooltip-copy" style="
-        background: #333;
-        border: 1px solid #555;
-        color: #aaa;
+        background: var(--comfy-input-bg, #333);
+        border: 1px solid var(--border-color, #555);
+        color: var(--input-text, #aaa);
         font-size: 11px;
         padding: 3px 8px;
         border-radius: 4px;
         cursor: pointer;
-      ">Copy IDs</button>
+        transition: background-color 0.15s ease;
+      " onmouseover="this.style.backgroundColor='var(--interface-panel-hover-surface, var(--content-hover-bg, #404040))'" onmouseout="this.style.backgroundColor='var(--comfy-input-bg, #333)'">Copy IDs</button>
     </div>
   `;
-  html += `<div id="a1111-token-ids" style="max-height: 80px; overflow-y: auto; padding: 8px; background: #0d0d1a; border-radius: 4px; font-size: 11px; color: #888; word-break: break-all;">`;
+  html += `<div id="a1111-token-ids" style="max-height: 80px; overflow-y: auto; padding: 8px; background: var(--comfy-input-bg, #222); border-radius: 4px; font-size: 11px; color: var(--descrip-text, #888); word-break: break-all;">`;
   html += tokenIds.join(", ");
   html += `</div>`;
 

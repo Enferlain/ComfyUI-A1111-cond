@@ -4,19 +4,36 @@ The A1111 Prompt Node autocomplete respects ComfyUI's theme system and will auto
 
 ## CSS Variables Used
 
-The autocomplete popup uses the following ComfyUI theme variables:
+The A1111 Prompt Node UI components use the following ComfyUI theme variables:
 
-### Background & Borders
+### Autocomplete Popup
+
+**Background & Borders:**
 - `--comfy-menu-bg` - Popup background color (fallback: `#353535`)
 - `--border-color` - Border and separator colors (fallback: `#555`)
 - `--comfy-input-bg` - Scrollbar track background (fallback: `#222`)
 
-### Text Colors
+**Text Colors:**
 - `--fg-color` - Primary text color (fallback: `#fff`)
 - `--descrip-text` - Secondary text (post counts) (fallback: `#888`)
 
-### Interactive Elements
-- `--content-hover-bg` - Selected item background (fallback: `#404040`)
+**Interactive Elements:**
+- `--interface-panel-hover-surface` - Selected item background (fallback: `--content-hover-bg`, then `#404040`)
+
+### Token Counter Tooltip
+
+**Background & Borders:**
+- `--comfy-menu-bg` - Tooltip background color (fallback: `#353535`)
+- `--border-color` - Border and divider colors (fallback: `#555`)
+- `--comfy-input-bg` - Token display and input ID backgrounds (fallback: `#222`)
+
+**Text Colors:**
+- `--fg-color` - Primary text color (fallback: `#eee`)
+- `--descrip-text` - Secondary text (fallback: `#888`)
+- `--input-text` - Button text color (fallback: `#aaa`)
+
+**Interactive Elements:**
+- `--interface-panel-hover-surface` - Button hover background (fallback: `--content-hover-bg`, then `#404040`)
 
 ## Tag Type Colors
 
@@ -38,7 +55,7 @@ The frequency indicator (★) uses a fixed blue color (`#4a9eff`) with semi-tran
 
 ## Custom Theming
 
-If you want to customize the autocomplete appearance beyond the default theme variables, you can add custom CSS to your `user.css` file:
+If you want to customize the appearance beyond the default theme variables, you can add custom CSS to your `user.css` file:
 
 ```css
 /* Custom autocomplete styling */
@@ -53,6 +70,12 @@ If you want to customize the autocomplete appearance beyond the default theme va
 
 .autocomplete-item:hover {
   background: #2a2a2a !important;
+}
+
+/* Custom token tooltip styling */
+.a1111-token-tooltip {
+  background: #1a1a1a !important;
+  border: 2px solid #00ff00 !important;
 }
 ```
 

@@ -170,7 +170,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         # Determine current step from sigma
         step_idx = self.get_step_from_sigma(sigma_val, sample_sigmas)
 
-        # Clamp step_idx to valid range (same as old StepConditioningHandler)
+        # Clamp step_idx to valid range
         step_idx = max(0, min(step_idx, len(self.step_embeddings) - 1))
 
         # Get target conditioning for this step
@@ -194,14 +194,14 @@ class A1111StepConditioningHook(TransformerOptionsHook):
 
         # Debug logging on first call - check conditions
         if not self._first_swap_logged:
-            logger.info(f"[A1111 Hook] === CHECKING SWAP CONDITIONS ===")
-            logger.info(
+            logger.debug(f"[A1111 Hook] === CHECKING SWAP CONDITIONS ===")
+            logger.debug(
                 f"[A1111 Hook] target_cond is not None: {target_cond is not None}"
             )
-            logger.info(f"[A1111 Hook] 'c_crossattn' in c: {'c_crossattn' in c}")
-            logger.info(f"[A1111 Hook] has_positive: {has_positive}")
-            logger.info(f"[A1111 Hook] cond_or_uncond: {cond_or_uncond}")
-            logger.info(f"[A1111 Hook] Keys in c: {list(c.keys())}")
+            logger.debug(f"[A1111 Hook] 'c_crossattn' in c: {'c_crossattn' in c}")
+            logger.debug(f"[A1111 Hook] has_positive: {has_positive}")
+            logger.debug(f"[A1111 Hook] cond_or_uncond: {cond_or_uncond}")
+            logger.debug(f"[A1111 Hook] Keys in c: {list(c.keys())}")
 
         if target_cond is not None and "c_crossattn" in c and has_positive:
             orig_cond = c["c_crossattn"]
@@ -210,22 +210,13 @@ class A1111StepConditioningHook(TransformerOptionsHook):
 
             # Log details on first swap
             if not self._first_swap_logged:
-                logger.info(f"[A1111 Hook] === FIRST CONDITIONING SWAP ===")
-                logger.info(
+                logger.debug(f"[A1111 Hook] === FIRST CONDITIONING SWAP ===")
+                logger.debug(
                     f"[A1111 Hook] Original c_crossattn shape: {orig_cond.shape}"
                 )
-                logger.info(f"[A1111 Hook] Target cond shape: {target_cond.shape}")
-                logger.info(f"[A1111 Hook] cond_or_uncond: {cond_or_uncond}")
-                logger.info(f"[A1111 Hook] Batch size: {len(cond_or_uncond)}")
-                # Check if they're actually different
-                are_same = torch.allclose(orig_cond, target_cond, rtol=1e-5, atol=1e-8)
-                logger.info(
-                    f"[A1111 Hook] Original and target are identical: {are_same}"
-                )
-                if are_same:
-                    logger.warning(
-                        f"[A1111 Hook] WARNING: Original and target conditioning are the same! No actual swap needed."
-                    )
+                logger.debug(f"[A1111 Hook] Target cond shape: {target_cond.shape}")
+                logger.debug(f"[A1111 Hook] cond_or_uncond: {cond_or_uncond}")
+                logger.debug(f"[A1111 Hook] Batch size: {len(cond_or_uncond)}")
 
             # Prepare swapped conditioning
             new_cond = target_cond.to(device=device, dtype=dtype).clone()
@@ -239,7 +230,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
                 lcm_len = math.lcm(target_seq_len, orig_seq_len)
 
                 if not self._first_swap_logged:
-                    logger.info(
+                    logger.debug(
                         f"[A1111 Hook] Sequence length mismatch: target={target_seq_len}, orig={orig_seq_len}, LCM={lcm_len}"
                     )
 
@@ -268,7 +259,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
                         swapped_count += 1
 
                 if not self._first_swap_logged:
-                    logger.info(
+                    logger.debug(
                         f"[A1111 Hook] Swapped {swapped_count} positive conditioning(s)"
                     )
             else:
@@ -281,7 +272,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
                         swapped_count += 1
 
                 if not self._first_swap_logged:
-                    logger.info(
+                    logger.debug(
                         f"[A1111 Hook] Swapped {swapped_count} positive conditioning(s) (no length mismatch)"
                     )
 
@@ -290,10 +281,10 @@ class A1111StepConditioningHook(TransformerOptionsHook):
             c["c_crossattn"] = modified_cond
 
             if not self._first_swap_logged:
-                logger.info(
+                logger.debug(
                     f"[A1111 Hook] Final modified_cond shape: {modified_cond.shape}"
                 )
-                logger.info(f"[A1111 Hook] === SWAP COMPLETE ===")
+                logger.debug(f"[A1111 Hook] === SWAP COMPLETE ===")
                 self._first_swap_logged = True  # Mark first swap as complete
         elif not self._first_swap_logged:
             logger.warning(f"[A1111 Hook] Conditioning swap skipped!")

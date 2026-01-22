@@ -27,10 +27,15 @@
 - [x] Frequency sorting with usage tracking
 - [x] Multiple tag file support (main + extra files)
 - [x] Auto-load quality tags
-- [ ] Custom tag lists (user-defined) - partially done (CSV support)
+- [x] Theme support (respects ComfyUI color scheme)
+- [x] Custom tag lists (user-defined) - partially done (CSV support)
 - [ ] Configuration UI for tag file selection
-- [ ] Chants/prompt presets
+- [ ] Chants/prompt presets (prompt library/bookmarks)
 - [ ] Wiki links for tag documentation
+- [ ] Visual distinction between different databases (e.g., Danbooru vs e621 tags)
+  - Consider: badge/icon, subtle background color, or source indicator
+  - Useful when loading multiple databases simultaneously
+  - Should be subtle to not clutter the UI
 
 ### Wildcard Support
 

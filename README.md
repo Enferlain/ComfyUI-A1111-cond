@@ -60,7 +60,7 @@ The node displays a **live token count** in the header, showing tokens per 77-to
 
 ### Tag Autocomplete
 
-The node includes **A1111-style tag autocomplete** functionality:
+The node includes [**A1111-style tag autocomplete**](https://github.com/DominikDoom/a1111-sd-webui-tagcomplete) functionality:
 
 - **Trigger**: Start typing any tag (2+ characters)
 - **Database**: Uses Danbooru/e621 tag databases (~140k tags)

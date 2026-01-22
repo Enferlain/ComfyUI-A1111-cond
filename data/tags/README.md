@@ -1,3 +1,5 @@
+### Autocomplete feature based on [a1111-sd-webui-tagcomplete](https://github.com/DominikDoom/a1111-sd-webui-tagcomplete)
+
 # Tag Database Files
 
 This directory contains CSV files with tag databases for autocomplete functionality.

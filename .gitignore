@@ -1,3 +1,4 @@
 __pycache__
 comfy_cond_guide.md
 context_files_from_a1111
+*.code-workspace

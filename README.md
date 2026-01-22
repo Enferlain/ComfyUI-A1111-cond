@@ -69,6 +69,7 @@ The node includes **A1111-style tag autocomplete** functionality:
 - **Color coding**: Tags are colored by type (general, artist, character, etc.)
 - **Post counts**: Shows tag popularity for better selection
 - **Frequency sorting**: Your frequently used tags appear first with a ★ indicator
+- **Theme support**: Automatically adapts to ComfyUI's theme (dark/light/custom)
 
 **Features:**
 - Alias support: Type `sole_female` → suggests `1girl`
@@ -77,6 +78,7 @@ The node includes **A1111-style tag autocomplete** functionality:
 - Real-time search with 100ms debouncing
 - Usage tracking: Tags you use often are prioritized in results
 - Quality tags: Automatically includes `extra-quality-tags.csv` for common quality/style tags
+- Theme-aware: Respects your ComfyUI color scheme
 
 **Available tag databases:**
 - `danbooru.csv` - Main Danbooru database (~140k tags)

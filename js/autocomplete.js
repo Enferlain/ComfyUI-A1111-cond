@@ -101,36 +101,39 @@ export function createAutocompletePopup() {
 
   autocompletePopup = document.createElement("div");
   autocompletePopup.className = "a1111-autocomplete-popup";
+  
+  // Use ComfyUI theme variables for consistent theming
   autocompletePopup.style.cssText = `
     position: fixed;
     z-index: 10000;
-    background: #2b2b2b;
-    border: 1px solid #555;
+    background: var(--comfy-menu-bg, #353535);
+    border: 2px solid var(--border-color, #555);
     border-radius: 6px;
     max-width: 350px;
     max-height: 300px;
     overflow-y: auto;
     display: none;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 13px;
+    color: var(--fg-color, #fff);
   `;
 
-  // Add scrollbar styling
+  // Add scrollbar styling that respects theme
   const style = document.createElement("style");
   style.textContent = `
     .a1111-autocomplete-popup::-webkit-scrollbar {
       width: 8px;
     }
     .a1111-autocomplete-popup::-webkit-scrollbar-track {
-      background: #1a1a1a;
+      background: var(--comfy-input-bg, #222);
     }
     .a1111-autocomplete-popup::-webkit-scrollbar-thumb {
-      background: #555;
+      background: var(--border-color, #555);
       border-radius: 4px;
     }
     .a1111-autocomplete-popup::-webkit-scrollbar-thumb:hover {
-      background: #666;
+      background: var(--content-hover-bg, #666);
     }
   `;
   document.head.appendChild(style);
@@ -228,16 +231,17 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
     item.style.cssText = `
       padding: 8px 12px;
       cursor: pointer;
-      border-bottom: 1px solid #444;
+      border-bottom: 1px solid var(--border-color, #444);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      transition: background-color 0.15s ease;
     `;
 
     // Tag name and alias info
     const nameSpan = document.createElement("span");
     nameSpan.style.cssText = `
-      color: ${TAG_COLORS[tag.type] || "#ccc"};
+      color: ${TAG_COLORS[tag.type] || "var(--fg-color, #ccc)"};
       font-weight: 500;
       flex: 1;
     `;
@@ -269,7 +273,7 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
     // Post count
     const countSpan = document.createElement("span");
     countSpan.style.cssText = `
-      color: #888;
+      color: var(--descrip-text, #888);
       font-size: 11px;
       margin-left: 8px;
     `;
@@ -371,7 +375,8 @@ function setSelectedIndex(index) {
   // Set new selection
   selectedIndex = Math.max(0, Math.min(index, currentResults.length - 1));
   if (items[selectedIndex]) {
-    items[selectedIndex].style.backgroundColor = "#404040";
+    // Use theme variable for hover background
+    items[selectedIndex].style.backgroundColor = "var(--interface-panel-hover-surface, var(--content-hover-bg, #404040))";
     
     // Scroll into view if needed
     items[selectedIndex].scrollIntoView({

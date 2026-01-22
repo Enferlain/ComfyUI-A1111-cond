@@ -68,18 +68,27 @@ The node includes **A1111-style tag autocomplete** functionality:
 - **Navigation**: Use ↑/↓ arrows, Tab/Enter to select, Escape to close
 - **Color coding**: Tags are colored by type (general, artist, character, etc.)
 - **Post counts**: Shows tag popularity for better selection
+- **Frequency sorting**: Your frequently used tags appear first with a ★ indicator
 
 **Features:**
 - Alias support: Type `sole_female` → suggests `1girl`
 - Smart insertion: Automatically adds commas and handles spacing
 - Parenthesis escaping: `name_(artist)` → `name_\(artist\)`
-- Real-time search with 200ms debouncing
+- Real-time search with 100ms debouncing
+- Usage tracking: Tags you use often are prioritized in results
+- Quality tags: Automatically includes `extra-quality-tags.csv` for common quality/style tags
 
 **Available tag databases:**
 - `danbooru.csv` - Main Danbooru database (~140k tags)
 - `e621.csv` - E621 database (furry-focused)
-- `extra-quality-tags.csv` - Quality and style tags
+- `extra-quality-tags.csv` - Quality and style tags (auto-loaded)
 - Custom CSV files can be added to `data/tags/`
+
+**Frequency Management:**
+Open browser console and use:
+- `window.A1111Autocomplete.getStats()` - View your most used tags
+- `window.A1111Autocomplete.resetFrequency()` - Clear usage data
+- `window.A1111Autocomplete.exportFrequency()` - Backup your data
 
 ### Scheduling
 

@@ -93,14 +93,23 @@ The A1111 tag autocomplete is a mature, feature-rich extension (~68KB main JS, ~
 **Goal:** Quality-of-life improvements  
 **Estimated Effort:** 3-5 days
 
-### 3.1 Frequency Sorting (High Priority)
+### 3.1 Frequency Sorting (High Priority) ✅
 
-- [ ] **Track tag usage** locally (localStorage or SQLite)
-- [ ] **Sort frequently used tags higher** in results
-- [ ] **Configurable sort functions**: Logarithmic, usage-first, etc.
-- [ ] **Reset frequency data** option
+- [x] **Track tag usage** locally (localStorage)
+- [x] **Sort frequently used tags higher** in results
+- [x] **Logarithmic boost function**: Prevents over-boosting common tags
+- [x] **Visual indicator**: ★ badge shows usage count
+- [x] **Utility functions**: Reset, export, and view stats via console
+- [x] **Persistent storage**: Survives browser restarts
 
-### 3.2 Chants (Prompt Presets)
+### 3.2 Extra File (Custom Tags) ✅
+
+- [x] **Support multiple tag files**: Load main + extra files
+- [x] **Auto-load quality tags**: `extra-quality-tags.csv` loaded by default
+- [x] **Merge results**: Combines tags from all sources
+- [x] **Duplicate prevention**: Same tag won't appear twice
+
+### 3.3 Chants (Prompt Presets)
 
 - [ ] **JSON format**:
   ```json
@@ -113,11 +122,6 @@ The A1111 tag autocomplete is a mature, feature-rich extension (~68KB main JS, ~
   ```
 - [ ] **Trigger character** (e.g., `@@` or custom): Show available chants
 - [ ] **Insert full preset** on selection
-
-### 3.3 Extra File (Custom Tags)
-
-- [ ] **Support small custom tag lists** in `extra-quality-tags.csv`
-- [ ] **Merge with main results** (before or after, configurable)
 
 ### 3.4 Wiki Links
 

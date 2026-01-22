@@ -19,6 +19,70 @@ let selectedIndex = -1;
 let currentResults = [];
 let debounceTimeout = null;
 
+// Frequency tracking
+const FREQUENCY_STORAGE_KEY = "a1111_tag_frequency";
+let tagFrequency = {}; // tag_name -> usage_count
+
+/**
+ * Load tag frequency data from localStorage
+ */
+function loadTagFrequency() {
+  try {
+    const stored = localStorage.getItem(FREQUENCY_STORAGE_KEY);
+    if (stored) {
+      tagFrequency = JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn("Failed to load tag frequency:", e);
+    tagFrequency = {};
+  }
+}
+
+/**
+ * Save tag frequency data to localStorage
+ */
+function saveTagFrequency() {
+  try {
+    localStorage.setItem(FREQUENCY_STORAGE_KEY, JSON.stringify(tagFrequency));
+  } catch (e) {
+    console.warn("Failed to save tag frequency:", e);
+  }
+}
+
+/**
+ * Increment usage count for a tag
+ * @param {string} tagName - The tag name
+ */
+function incrementTagFrequency(tagName) {
+  tagFrequency[tagName] = (tagFrequency[tagName] || 0) + 1;
+  saveTagFrequency();
+}
+
+/**
+ * Get usage count for a tag
+ * @param {string} tagName - The tag name
+ * @returns {number} Usage count
+ */
+function getTagFrequency(tagName) {
+  return tagFrequency[tagName] || 0;
+}
+
+/**
+ * Calculate frequency boost score
+ * Uses logarithmic scaling to prevent over-boosting
+ * @param {number} frequency - Usage count
+ * @returns {number} Boost score
+ */
+function calculateFrequencyBoost(frequency) {
+  if (frequency === 0) return 0;
+  // Logarithmic boost: log2(frequency + 1)
+  // This gives: 1 use = 1.0, 3 uses = 2.0, 7 uses = 3.0, 15 uses = 4.0
+  return Math.log2(frequency + 1);
+}
+
+// Load frequency data on startup
+loadTagFrequency();
+
 // Tag type colors (matching backend TAG_TYPES)
 const TAG_COLORS = {
   0: "#87ceeb", // general - lightblue
@@ -145,7 +209,11 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
   }
 
   const popup = createAutocompletePopup();
-  currentResults = suggestions;
+  
+  // Apply frequency sorting to suggestions
+  const sortedSuggestions = sortByFrequency(suggestions);
+  
+  currentResults = sortedSuggestions;
   selectedIndex = -1;
   currentTextarea = textarea;
   currentWordInfo = wordInfo;
@@ -154,7 +222,7 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
   popup.innerHTML = "";
 
   // Create result items
-  suggestions.forEach((tag, index) => {
+  sortedSuggestions.forEach((tag, index) => {
     const item = document.createElement("div");
     item.className = "autocomplete-item";
     item.style.cssText = `
@@ -171,6 +239,7 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
     nameSpan.style.cssText = `
       color: ${TAG_COLORS[tag.type] || "#ccc"};
       font-weight: 500;
+      flex: 1;
     `;
     
     let displayName = tag.name;
@@ -179,6 +248,23 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
       nameSpan.style.fontStyle = "italic";
     }
     nameSpan.textContent = displayName;
+
+    // Frequency indicator (if used before)
+    const frequency = getTagFrequency(tag.name);
+    if (frequency > 0) {
+      const freqSpan = document.createElement("span");
+      freqSpan.style.cssText = `
+        color: #4a9eff;
+        font-size: 10px;
+        margin-left: 6px;
+        padding: 2px 4px;
+        background: rgba(74, 158, 255, 0.15);
+        border-radius: 3px;
+      `;
+      freqSpan.textContent = `★${frequency}`;
+      freqSpan.title = `Used ${frequency} time${frequency > 1 ? 's' : ''}`;
+      nameSpan.appendChild(freqSpan);
+    }
 
     // Post count
     const countSpan = document.createElement("span");
@@ -224,6 +310,36 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
 
   popup.style.display = "block";
   setSelectedIndex(0); // Select first item by default
+}
+
+/**
+ * Sort suggestions by frequency and relevance
+ * @param {Array} suggestions - Array of tag suggestions
+ * @returns {Array} Sorted suggestions
+ */
+function sortByFrequency(suggestions) {
+  return suggestions.map(tag => {
+    const frequency = getTagFrequency(tag.name);
+    const frequencyBoost = calculateFrequencyBoost(frequency);
+    
+    // Combined score: base score (from backend) + frequency boost
+    // Backend already provides relevance score via ordering
+    // We add frequency boost to prioritize frequently used tags
+    return {
+      ...tag,
+      _frequency: frequency,
+      _frequencyBoost: frequencyBoost
+    };
+  }).sort((a, b) => {
+    // Sort by frequency boost first (higher is better)
+    const freqDiff = b._frequencyBoost - a._frequencyBoost;
+    if (Math.abs(freqDiff) > 0.5) { // Only prioritize if significant difference
+      return freqDiff;
+    }
+    
+    // Then by post count (backend relevance)
+    return b.count - a.count;
+  });
 }
 
 /**
@@ -277,6 +393,9 @@ function insertTag(index = selectedIndex) {
   const tag = currentResults[index];
   const textarea = currentTextarea;
   const wordInfo = currentWordInfo;
+
+  // Track tag usage for frequency sorting
+  incrementTagFrequency(tag.name);
 
   // Get current text and cursor position
   const text = textarea.value;
@@ -383,7 +502,8 @@ export async function fetchTagSuggestions(query, limit = 20) {
       body: JSON.stringify({
         query: query,
         limit: limit,
-        search_aliases: true
+        search_aliases: true,
+        extra_files: ["extra-quality-tags.csv"] // Include quality tags
       }),
     });
 
@@ -398,6 +518,55 @@ export async function fetchTagSuggestions(query, limit = 20) {
     console.warn("Autocomplete fetch error:", error);
     return [];
   }
+}
+
+/**
+ * Reset tag frequency data
+ * Useful for clearing usage statistics
+ */
+export function resetTagFrequency() {
+  if (confirm("Reset all tag frequency data? This will clear your usage statistics.")) {
+    tagFrequency = {};
+    saveTagFrequency();
+    console.log("[Autocomplete] Tag frequency data reset");
+  }
+}
+
+/**
+ * Export tag frequency data for backup
+ * @returns {string} JSON string of frequency data
+ */
+export function exportTagFrequency() {
+  return JSON.stringify(tagFrequency, null, 2);
+}
+
+/**
+ * Get statistics about tag usage
+ * @returns {Object} Statistics object
+ */
+export function getFrequencyStats() {
+  const entries = Object.entries(tagFrequency);
+  const totalTags = entries.length;
+  const totalUses = entries.reduce((sum, [_, count]) => sum + count, 0);
+  const topTags = entries
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([tag, count]) => ({ tag, count }));
+  
+  return {
+    totalTags,
+    totalUses,
+    topTags
+  };
+}
+
+// Expose utility functions to window for console access
+if (typeof window !== 'undefined') {
+  window.A1111Autocomplete = {
+    resetFrequency: resetTagFrequency,
+    exportFrequency: exportTagFrequency,
+    getStats: getFrequencyStats
+  };
 }
 
 /**

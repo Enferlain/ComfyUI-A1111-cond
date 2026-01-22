@@ -62,13 +62,14 @@ class TagDatabase:
     In-memory tag database with fast prefix search.
 
     Tags are loaded lazily on first search to avoid slowing down ComfyUI startup.
+    Supports loading multiple tag files and merging results.
     """
 
     def __init__(self):
         self._tags: List[TagEntry] = []
         self._alias_map: Dict[str, TagEntry] = {}  # alias -> canonical tag
         self._loaded = False
-        self._current_file: Optional[str] = None
+        self._current_files: List[str] = []
 
     @property
     def is_loaded(self) -> bool:
@@ -78,27 +79,33 @@ class TagDatabase:
     def tag_count(self) -> int:
         return len(self._tags)
 
-    def load_csv(self, filepath: Path) -> int:
+    def load_csv(self, filepath: Path, append: bool = False) -> int:
         """
         Load tags from a CSV file.
 
         Args:
             filepath: Path to the CSV file
+            append: If True, append to existing tags instead of replacing
 
         Returns:
-            Number of tags loaded
+            Number of tags loaded from this file
 
         CSV Format: name,type,postCount,"aliases"
         Example: 1girl,0,6008644,"1girls,sole_female"
         """
-        self._tags = []
-        self._alias_map = {}
+        if not append:
+            self._tags = []
+            self._alias_map = {}
+            self._current_files = []
 
         if not filepath.exists():
             print(f"[Autocomplete] Tag file not found: {filepath}")
             return 0
 
         try:
+            loaded_count = 0
+            existing_tags = {tag.name for tag in self._tags}
+            
             with open(filepath, "r", encoding="utf-8", errors="replace") as f:
                 reader = csv.reader(f)
                 for row in reader:
@@ -106,7 +113,7 @@ class TagDatabase:
                         continue
 
                     name = row[0].strip()
-                    if not name:
+                    if not name or name in existing_tags:
                         continue
 
                     try:
@@ -126,19 +133,37 @@ class TagDatabase:
 
                     entry = TagEntry(name, tag_type, count, aliases)
                     self._tags.append(entry)
+                    existing_tags.add(name)
+                    loaded_count += 1
 
                     # Build alias -> canonical tag mapping
                     for alias in aliases:
                         self._alias_map[alias.lower()] = entry
 
             self._loaded = True
-            self._current_file = filepath.name
-            print(f"[Autocomplete] Loaded {len(self._tags)} tags from {filepath.name}")
-            return len(self._tags)
+            self._current_files.append(filepath.name)
+            print(f"[Autocomplete] Loaded {loaded_count} tags from {filepath.name}")
+            return loaded_count
 
         except Exception as e:
             print(f"[Autocomplete] Error loading tag file: {e}")
             return 0
+
+    def load_multiple(self, filepaths: List[Path]) -> int:
+        """
+        Load tags from multiple CSV files, merging results.
+
+        Args:
+            filepaths: List of paths to CSV files
+
+        Returns:
+            Total number of tags loaded
+        """
+        total = 0
+        for i, filepath in enumerate(filepaths):
+            count = self.load_csv(filepath, append=(i > 0))
+            total += count
+        return total
 
     def search(
         self, query: str, limit: int = 20, search_aliases: bool = True
@@ -218,35 +243,54 @@ def get_database() -> TagDatabase:
     return _database
 
 
-def ensure_database_loaded(tag_file: str = "danbooru.csv") -> TagDatabase:
+def ensure_database_loaded(tag_file: str = "danbooru.csv", extra_files: Optional[List[str]] = None) -> TagDatabase:
     """
     Ensure the database is loaded, loading it if necessary.
 
     Args:
-        tag_file: Name of the tag file to load
+        tag_file: Name of the main tag file to load
+        extra_files: Optional list of additional tag files to merge (e.g., ["extra-quality-tags.csv"])
 
     Returns:
         The loaded TagDatabase instance
     """
     db = get_database()
 
-    if not db.is_loaded or db._current_file != tag_file:
-        # Try to find the tag file
-        filepath = DATA_DIR / tag_file
+    # Build list of files to load
+    files_to_load = [tag_file]
+    if extra_files:
+        files_to_load.extend(extra_files)
 
-        # Also check the reference tags folder as fallback
-        if not filepath.exists():
-            ref_path = (
-                Path(__file__).parent.parent
-                / "autocomplete_reference"
-                / "a1111-sd-webui-tagcomplete"
-                / "tags"
-                / tag_file
-            )
-            if ref_path.exists():
-                filepath = ref_path
+    # Check if we need to reload
+    needs_reload = not db.is_loaded or set(db._current_files) != set(files_to_load)
 
-        db.load_csv(filepath)
+    if needs_reload:
+        # Find and load all tag files
+        filepaths = []
+        
+        for filename in files_to_load:
+            # Try main data directory first
+            filepath = DATA_DIR / filename
+            
+            # Fall back to reference directory
+            if not filepath.exists():
+                ref_path = (
+                    Path(__file__).parent.parent
+                    / "autocomplete_reference"
+                    / "a1111-sd-webui-tagcomplete"
+                    / "tags"
+                    / filename
+                )
+                if ref_path.exists():
+                    filepath = ref_path
+            
+            if filepath.exists():
+                filepaths.append(filepath)
+            else:
+                print(f"[Autocomplete] Warning: Tag file not found: {filename}")
+        
+        if filepaths:
+            db.load_multiple(filepaths)
 
     return db
 
@@ -289,10 +333,11 @@ if _HAS_SERVER and PromptServer:
         query = data.get("query", "")
         limit = min(data.get("limit", 20), 100)  # Cap at 100
         tag_file = data.get("tag_file", "danbooru.csv")
+        extra_files = data.get("extra_files", ["extra-quality-tags.csv"])  # Load quality tags by default
         search_aliases = data.get("search_aliases", True)
 
         # Ensure database is loaded
-        db = ensure_database_loaded(tag_file)
+        db = ensure_database_loaded(tag_file, extra_files=extra_files)
 
         # Perform search
         results = db.search(query, limit=limit, search_aliases=search_aliases)
@@ -317,7 +362,7 @@ if _HAS_SERVER and PromptServer:
             {
                 "loaded": db.is_loaded,
                 "tag_count": db.tag_count,
-                "current_file": db._current_file,
+                "current_files": db._current_files,
             }
         )
 

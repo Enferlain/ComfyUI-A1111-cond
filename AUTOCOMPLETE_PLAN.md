@@ -68,17 +68,17 @@ The A1111 tag autocomplete is a mature, feature-rich extension (~68KB main JS, ~
 
 ---
 
-## Phase 2: Alias & Translation Support
+## Phase 2: Alias & Translation Support ✅
 
 **Goal:** Search by aliases and translations  
-**Estimated Effort:** 2-3 days
+**Status:** COMPLETED
 
-### 2.1 Alias Search
+### 2.1 Alias Search ✅
 
-- [ ] **Parse aliases from CSV** (4th column, comma-separated in quotes)
-- [ ] **Include aliases in search**: Match `sole_female` when searching for `1girl`
-- [ ] **Display alias mapping**: Show `sole_female → 1girl`
-- [ ] **Insert canonical tag**, not alias
+- [x] **Parse aliases from CSV** (4th column, comma-separated in quotes)
+- [x] **Include aliases in search**: Match `sole_female` when searching for `1girl`
+- [x] **Display alias mapping**: Show `sole_female → 1girl`
+- [x] **Insert canonical tag**, not alias
 
 ### 2.2 Translation Support
 
@@ -88,37 +88,19 @@ The A1111 tag autocomplete is a mature, feature-rich extension (~68KB main JS, ~
 
 ---
 
-## Phase 3: Wildcard Completion
-
-**Goal:** Complete `__wildcard__` syntax  
-**Estimated Effort:** 2-3 days
-
-### 3.1 Trigger System
-
-- [ ] **`__` trigger**: Start showing wildcard files after `__`
-- [ ] **Two-stage completion**:
-  1. First `__` shows available wildcard files
-  2. Selecting a file shows contents (possible replacements)
-
-### 3.2 Data Collection
-
-- [ ] **Scan `data/wildcards/`** for `.txt` files
-- [ ] **Parse wildcard files**: One option per line
-- [ ] **Support nested folders**: `hair/colors/light.txt` → `__hair/colors/light__`
-
-### 3.3 Insertion
-
-- [ ] **File selection**: Insert `__filename__` for random selection
-- [ ] **Direct selection**: Insert specific option from file contents
-
----
-
-## Phase 4: Advanced Features
+## Phase 3: Advanced Features
 
 **Goal:** Quality-of-life improvements  
 **Estimated Effort:** 3-5 days
 
-### 5.1 Chants (Prompt Presets)
+### 3.1 Frequency Sorting (High Priority)
+
+- [ ] **Track tag usage** locally (localStorage or SQLite)
+- [ ] **Sort frequently used tags higher** in results
+- [ ] **Configurable sort functions**: Logarithmic, usage-first, etc.
+- [ ] **Reset frequency data** option
+
+### 3.2 Chants (Prompt Presets)
 
 - [ ] **JSON format**:
   ```json
@@ -132,23 +114,17 @@ The A1111 tag autocomplete is a mature, feature-rich extension (~68KB main JS, ~
 - [ ] **Trigger character** (e.g., `@@` or custom): Show available chants
 - [ ] **Insert full preset** on selection
 
-### 4.2 Extra File (Custom Tags)
+### 3.3 Extra File (Custom Tags)
 
 - [ ] **Support small custom tag lists** in `extra-quality-tags.csv`
 - [ ] **Merge with main results** (before or after, configurable)
 
-### 4.3 Frequency Sorting
-
-- [ ] **Track tag usage** locally (localStorage or SQLite)
-- [ ] **Sort frequently used tags higher** in results
-- [ ] **Configurable sort functions**: Logarithmic, usage-first, etc.
-
-### 4.4 Wiki Links
+### 3.4 Wiki Links
 
 - [ ] **Optional `?` button** next to tags
 - [ ] **Link to Danbooru/e621 wiki** for tag examples
 
-### 4.5 Configuration UI
+### 3.5 Configuration UI
 
 - [ ] **Settings panel** in ComfyUI for:
   - Tag file selection
@@ -156,6 +132,32 @@ The A1111 tag autocomplete is a mature, feature-rich extension (~68KB main JS, ~
   - Result count
   - Hotkey mapping
   - Color customization
+
+---
+
+## Phase 4: Wildcard Completion (Requires Parser Support)
+
+**Goal:** Complete `__wildcard__` syntax  
+**Estimated Effort:** 2-3 days  
+**Blocked by:** Wildcard support needs to be added to the parser first
+
+### 4.1 Trigger System
+
+- [ ] **`__` trigger**: Start showing wildcard files after `__`
+- [ ] **Two-stage completion**:
+  1. First `__` shows available wildcard files
+  2. Selecting a file shows contents (possible replacements)
+
+### 4.2 Data Collection
+
+- [ ] **Scan `data/wildcards/`** for `.txt` files
+- [ ] **Parse wildcard files**: One option per line
+- [ ] **Support nested folders**: `hair/colors/light.txt` → `__hair/colors/light__`
+
+### 4.3 Insertion
+
+- [ ] **File selection**: Insert `__filename__` for random selection
+- [ ] **Direct selection**: Insert specific option from file contents
 
 ---
 
@@ -241,17 +243,19 @@ highres,5,3008413,"high_res,high_resolution,hires"
 
 ## Implementation Priority
 
-| Phase               | Priority    | Effort   | Value                           |
-| ------------------- | ----------- | -------- | ------------------------------- |
-| Phase 1 (Core)      | 🔥 Critical | 3-5 days | High - Basic functionality      |
-| Phase 2 (Aliases)   | ⚡ High     | 2-3 days | Medium - Better discoverability |
-| Phase 3 (Wildcards) | 💡 Medium   | 2-3 days | Medium - Power user feature     |
-| Phase 4 (Advanced)  | 💡 Medium   | 3-5 days | Low-Medium - Nice to have       |
+| Phase                  | Priority    | Effort   | Value                           | Status      |
+| ---------------------- | ----------- | -------- | ------------------------------- | ----------- |
+| Phase 1 (Core)         | 🔥 Critical | 3-5 days | High - Basic functionality      | ✅ Complete |
+| Phase 2 (Aliases)      | ⚡ High     | 2-3 days | Medium - Better discoverability | ✅ Complete |
+| Phase 3 (Advanced)     | 💡 Medium   | 3-5 days | Medium - QoL improvements       | 📋 Next     |
+| Phase 4 (Wildcards)    | 💡 Low      | 2-3 days | Low - Blocked by parser support | ⏸️ Blocked  |
 
 **Total Estimated Effort:** 10-15 days for full implementation
 
-> **Note:** Extra Networks completion (LoRAs, embeddings, hypernetworks) is intentionally omitted.
-> ComfyUI uses dedicated nodes for these rather than inline `<lora:>` syntax.
+**Current Status:** Phase 1 & 2 complete! Autocomplete is fully functional with alias support.
+
+> **Note:** Phase 4 (Wildcards) requires wildcard support to be added to the parser first.
+> Phase 3 (Advanced Features) is now the next priority, especially frequency sorting.
 
 ---
 

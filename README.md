@@ -58,6 +58,29 @@ The node displays a **live token count** in the header, showing tokens per 77-to
 - Blue vertical bars mark BREAK positions
 - Markers align with word boundaries and update in real-time
 
+### Tag Autocomplete
+
+The node includes **A1111-style tag autocomplete** functionality:
+
+- **Trigger**: Start typing any tag (2+ characters)
+- **Database**: Uses Danbooru/e621 tag databases (~140k tags)
+- **Search**: Matches tag names and aliases
+- **Navigation**: Use ↑/↓ arrows, Tab/Enter to select, Escape to close
+- **Color coding**: Tags are colored by type (general, artist, character, etc.)
+- **Post counts**: Shows tag popularity for better selection
+
+**Features:**
+- Alias support: Type `sole_female` → suggests `1girl`
+- Smart insertion: Automatically adds commas and handles spacing
+- Parenthesis escaping: `name_(artist)` → `name_\(artist\)`
+- Real-time search with 200ms debouncing
+
+**Available tag databases:**
+- `danbooru.csv` - Main Danbooru database (~140k tags)
+- `e621.csv` - E621 database (furry-focused)
+- `extra-quality-tags.csv` - Quality and style tags
+- Custom CSV files can be added to `data/tags/`
+
 ### Scheduling
 
 | Syntax          | Meaning                                  |

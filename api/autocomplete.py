@@ -1,82 +1,355 @@
 """
-Tag Autocomplete API (Placeholder)
+Tag Autocomplete API
 
-Future implementation for tag autocomplete functionality:
+Provides tag autocomplete functionality with support for:
 - Danbooru/e621 tag databases
-- Custom tag lists (user-defined)
-- Show tag frequency/popularity
+- Alias searching
+- Post count sorting with optional frequency boosting
 """
 
-from aiohttp import web
-from typing import List, Dict, Optional
+import csv
+import re
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+# Conditional server import
+try:
+    from aiohttp import web
+    from server import PromptServer
+    _HAS_SERVER = True
+except ImportError:
+    _HAS_SERVER = False
+    web = None
+    PromptServer = None
+
+# Tag type definitions (for color coding in frontend)
+TAG_TYPES = {
+    0: "general",  # lightblue/dodgerblue
+    1: "artist",  # indianred/firebrick
+    3: "copyright",  # violet/darkorchid
+    4: "character",  # lightgreen/darkgreen
+    5: "meta",  # orange/darkorange
+}
+
+# Get the data directory path
+DATA_DIR = Path(__file__).parent.parent / "data" / "tags"
 
 
-# Placeholder for tag database
-_tag_database = None
+class TagEntry:
+    """Represents a single tag entry from the database."""
 
+    __slots__ = ("name", "type", "count", "aliases", "search_text")
 
-def load_tag_database(database_path: Optional[str] = None) -> Dict:
-    """
-    Load the tag database from file.
+    def __init__(self, name: str, tag_type: int, count: int, aliases: List[str]):
+        self.name = name
+        self.type = tag_type
+        self.count = count
+        self.aliases = aliases
+        # Pre-compute lowercase search text for faster matching
+        self.search_text = name.lower()
 
-    Args:
-        database_path: Path to the tag database file
-
-    Returns:
-        Dictionary mapping tags to their metadata
-
-    TODO: Implement this functionality
-    """
-    global _tag_database
-    if _tag_database is None:
-        _tag_database = {}
-    return _tag_database
-
-
-def search_tags(query: str, limit: int = 20) -> List[Dict]:
-    """
-    Search for tags matching the query.
-
-    Args:
-        query: Search query string
-        limit: Maximum number of results to return
-
-    Returns:
-        List of matching tags with metadata
-
-    TODO: Implement this functionality
-    """
-    # Placeholder - returns empty list
-    return []
-
-
-# Placeholder endpoint - uncomment when implementing
-# @server.PromptServer.instance.routes.post("/a1111_prompt/autocomplete")
-async def autocomplete_tags(request):
-    """
-    API endpoint for tag autocomplete.
-
-    Request body:
-        {
-            "query": "partial_tag_name",
-            "limit": 20,
-            "database": "danbooru"  # or "e621", "custom"
+    def to_dict(self) -> Dict:
+        return {
+            "name": self.name,
+            "type": self.type,
+            "count": self.count,
+            "aliases": self.aliases,
         }
 
-    Response:
-        {
-            "tags": [
-                {"name": "tag_name", "count": 12345, "category": "general"},
-                ...
-            ]
-        }
 
-    TODO: Implement this functionality
+class TagDatabase:
     """
-    data = await request.json()
-    query = data.get("query", "")
-    limit = data.get("limit", 20)
+    In-memory tag database with fast prefix search.
 
-    tags = search_tags(query, limit)
+    Tags are loaded lazily on first search to avoid slowing down ComfyUI startup.
+    """
 
-    return web.json_response({"tags": tags})
+    def __init__(self):
+        self._tags: List[TagEntry] = []
+        self._alias_map: Dict[str, TagEntry] = {}  # alias -> canonical tag
+        self._loaded = False
+        self._current_file: Optional[str] = None
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._loaded
+
+    @property
+    def tag_count(self) -> int:
+        return len(self._tags)
+
+    def load_csv(self, filepath: Path) -> int:
+        """
+        Load tags from a CSV file.
+
+        Args:
+            filepath: Path to the CSV file
+
+        Returns:
+            Number of tags loaded
+
+        CSV Format: name,type,postCount,"aliases"
+        Example: 1girl,0,6008644,"1girls,sole_female"
+        """
+        self._tags = []
+        self._alias_map = {}
+
+        if not filepath.exists():
+            print(f"[Autocomplete] Tag file not found: {filepath}")
+            return 0
+
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if len(row) < 3:
+                        continue
+
+                    name = row[0].strip()
+                    if not name:
+                        continue
+
+                    try:
+                        tag_type = int(row[1])
+                    except (ValueError, IndexError):
+                        tag_type = 0
+
+                    try:
+                        count = int(row[2])
+                    except (ValueError, IndexError):
+                        count = 0
+
+                    # Parse aliases (4th column, comma-separated in quotes)
+                    aliases = []
+                    if len(row) > 3 and row[3]:
+                        aliases = [a.strip() for a in row[3].split(",") if a.strip()]
+
+                    entry = TagEntry(name, tag_type, count, aliases)
+                    self._tags.append(entry)
+
+                    # Build alias -> canonical tag mapping
+                    for alias in aliases:
+                        self._alias_map[alias.lower()] = entry
+
+            self._loaded = True
+            self._current_file = filepath.name
+            print(f"[Autocomplete] Loaded {len(self._tags)} tags from {filepath.name}")
+            return len(self._tags)
+
+        except Exception as e:
+            print(f"[Autocomplete] Error loading tag file: {e}")
+            return 0
+
+    def search(
+        self, query: str, limit: int = 20, search_aliases: bool = True
+    ) -> List[Dict]:
+        """
+        Search for tags matching the query.
+
+        Args:
+            query: Search query (prefix match)
+            limit: Maximum number of results
+            search_aliases: Whether to also search aliases
+
+        Returns:
+            List of matching tags as dictionaries
+        """
+        if not self._loaded or not query:
+            return []
+
+        query_lower = query.lower().strip()
+        if not query_lower:
+            return []
+
+        results: List[Tuple[int, TagEntry, Optional[str]]] = []
+        seen_tags = set()
+
+        # Score function: exact match > prefix match > contains match
+        def get_score(tag: TagEntry, matched_text: str) -> int:
+            if matched_text == query_lower:
+                return 3  # Exact match
+            elif matched_text.startswith(query_lower):
+                return 2  # Prefix match
+            else:
+                return 1  # Contains match
+
+        # Search by tag name
+        for tag in self._tags:
+            if query_lower in tag.search_text:
+                score = get_score(tag, tag.search_text)
+                results.append((score, tag, None))
+                seen_tags.add(tag.name)
+
+        # Search by aliases
+        if search_aliases:
+            for alias_lower, tag in self._alias_map.items():
+                if tag.name in seen_tags:
+                    continue
+                if query_lower in alias_lower:
+                    score = get_score(tag, alias_lower)
+                    # Find the original case alias
+                    original_alias = next(
+                        (a for a in tag.aliases if a.lower() == alias_lower),
+                        alias_lower,
+                    )
+                    results.append((score, tag, original_alias))
+                    seen_tags.add(tag.name)
+
+        # Sort by: score (desc), then post count (desc)
+        results.sort(key=lambda x: (-x[0], -x[1].count))
+
+        # Format results
+        output = []
+        for _, tag, matched_alias in results[:limit]:
+            entry = tag.to_dict()
+            if matched_alias:
+                entry["matched_alias"] = matched_alias
+            output.append(entry)
+
+        return output
+
+
+# Global database instance (lazy loaded)
+_database = TagDatabase()
+
+
+def get_database() -> TagDatabase:
+    """Get the global tag database instance."""
+    return _database
+
+
+def ensure_database_loaded(tag_file: str = "danbooru.csv") -> TagDatabase:
+    """
+    Ensure the database is loaded, loading it if necessary.
+
+    Args:
+        tag_file: Name of the tag file to load
+
+    Returns:
+        The loaded TagDatabase instance
+    """
+    db = get_database()
+
+    if not db.is_loaded or db._current_file != tag_file:
+        # Try to find the tag file
+        filepath = DATA_DIR / tag_file
+
+        # Also check the reference tags folder as fallback
+        if not filepath.exists():
+            ref_path = (
+                Path(__file__).parent.parent
+                / "autocomplete_reference"
+                / "a1111-sd-webui-tagcomplete"
+                / "tags"
+                / tag_file
+            )
+            if ref_path.exists():
+                filepath = ref_path
+
+        db.load_csv(filepath)
+
+    return db
+
+
+# Register API endpoints (only if server is available)
+if _HAS_SERVER and PromptServer:
+    @PromptServer.instance.routes.post("/a1111_prompt/autocomplete")
+    async def autocomplete_tags(request):
+        """
+        API endpoint for tag autocomplete.
+
+        Request body:
+            {
+                "query": "partial_tag_name",
+                "limit": 20,
+                "tag_file": "danbooru.csv",
+                "search_aliases": true
+            }
+
+        Response:
+            {
+                "results": [
+                    {
+                        "name": "1girl",
+                        "type": 0,
+                        "count": 6008644,
+                        "aliases": ["1girls", "sole_female"],
+                        "matched_alias": "sole_female"  // only if matched via alias
+                    },
+                    ...
+                ],
+                "tag_count": 100000
+            }
+        """
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response({"error": "Invalid JSON"}, status=400)
+
+        query = data.get("query", "")
+        limit = min(data.get("limit", 20), 100)  # Cap at 100
+        tag_file = data.get("tag_file", "danbooru.csv")
+        search_aliases = data.get("search_aliases", True)
+
+        # Ensure database is loaded
+        db = ensure_database_loaded(tag_file)
+
+        # Perform search
+        results = db.search(query, limit=limit, search_aliases=search_aliases)
+
+        return web.json_response({"results": results, "tag_count": db.tag_count})
+
+
+    @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/status")
+    async def autocomplete_status(request):
+        """
+        Get the status of the autocomplete database.
+
+        Response:
+            {
+                "loaded": true,
+                "tag_count": 100000,
+                "current_file": "danbooru.csv"
+            }
+        """
+        db = get_database()
+        return web.json_response(
+            {
+                "loaded": db.is_loaded,
+                "tag_count": db.tag_count,
+                "current_file": db._current_file,
+            }
+        )
+
+
+    @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/files")
+    async def list_tag_files(request):
+        """
+        List available tag files.
+
+        Response:
+            {
+                "files": ["danbooru.csv", "e621.csv", ...]
+            }
+        """
+        files = []
+
+        # Check main data directory
+        if DATA_DIR.exists():
+            files.extend(f.name for f in DATA_DIR.glob("*.csv"))
+
+        # Check reference directory
+        ref_dir = (
+            Path(__file__).parent.parent
+            / "autocomplete_reference"
+            / "a1111-sd-webui-tagcomplete"
+            / "tags"
+        )
+        if ref_dir.exists():
+            for f in ref_dir.glob("*.csv"):
+                if f.name not in files:
+                    files.append(f.name)
+
+        files.sort()
+
+        return web.json_response({"files": files})

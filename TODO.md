@@ -15,10 +15,17 @@
 
 ### Tag Autocomplete
 
-- [ ] Autocomplete popup when typing (like A1111's tag autocomplete)
-- [ ] Support Danbooru/e621 tag databases
-- [ ] Custom tag lists (user-defined)
-- [ ] Show tag frequency/popularity
+- [x] Autocomplete popup when typing (like A1111's tag autocomplete)
+- [x] Support Danbooru/e621 tag databases
+- [x] Show tag frequency/popularity
+- [x] Keyboard navigation (↑/↓/Tab/Enter/Escape)
+- [x] Mouse click selection
+- [x] Alias support and display
+- [x] Color-coded tags by type
+- [x] Smart tag insertion with comma handling
+- [x] Parenthesis escaping for A1111 compatibility
+- [ ] Custom tag lists (user-defined) - partially done (CSV support)
+- [ ] Configuration UI for tag file selection
 
 ### Wildcard Support
 

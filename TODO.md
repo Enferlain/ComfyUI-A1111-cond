@@ -1,13 +1,24 @@
 # A1111 Prompt Node - TODO / Roadmap
 
-## ✅ Completed
+## ✅ Recently Completed
 
+### Hook System Refactor (NEW!)
+- [x] Replaced MODEL input requirement with TransformerOptionsHook
+- [x] Auto-detect step count from sampler's sample_sigmas
+- [x] Simplified workflow: CLIP → Node → Sampler (no MODEL needed)
+- [x] Step-based syntax now scales to actual sampler steps
+- [x] Updated documentation and created migration guide
+
+### Token Counter & Autocomplete
 - [x] Token counter in node header (`45/75 | 32/75`)
 - [x] BREAK-aware sequence counting
 - [x] Real tokenization (no estimation)
 - [x] Warning colors for long prompts (yellow 300+, red 450+ tokens)
 - [x] Visual boundary markers (orange bars at 75-token boundaries)
 - [x] BREAK position markers (blue bars)
+- [x] Tag autocomplete with Danbooru/e621 databases
+- [x] Frequency sorting with usage tracking
+- [x] Theme support (respects ComfyUI color scheme)
 
 ---
 
@@ -64,20 +75,20 @@
 
 ## ✨ Syntax Features
 
-### Syntax Highlighting
+### Syntax Highlighting (low priority)
 
 - [ ] Color-code `[scheduling:syntax:when]`
 - [ ] Color-code `(emphasis:1.2)`
 - [ ] Color-code `[A|B|C]` alternation
 - [ ] Custom textarea with overlay (complex)
 
-### Embedding Support
+### Embedding Support (low priority)
 
 - [ ] Warn if `embedding:name` doesn't exist
 - [ ] Autocomplete for available embeddings
 - [ ] Show embedding token count
 
-### Schedule Preview
+### Schedule Preview (low priority)
 
 - [ ] Tooltip showing what prompt looks like at different steps
 - [ ] Interactive slider to preview step-by-step changes

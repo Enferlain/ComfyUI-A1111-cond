@@ -82,26 +82,20 @@ def _collect_steps(steps: int, trees) -> List[int]:
 
         def alternate_scheduled(self, tree):
             # Scheduled alternation: [a|b:when] or [a|b::when]
-            # Format: options..., maybe ":", maybe ":", NUMBER
-            # Find the NUMBER token (should be near the end)
+            # Format: options..., maybe DOUBLE_COLON, maybe None, NUMBER, maybe None
+            # The DOUBLE_COLON token indicates :: syntax
+            
             when_token = None
             has_double_colon = False
-            for i, child in enumerate(tree.children):
+            
+            # Find the NUMBER token and check for DOUBLE_COLON
+            for child in tree.children:
                 if isinstance(child, lark.Token):
                     if child.type == "NUMBER":
                         when_token = child
-                    elif str(child) == ":":
-                        # Check if there's another colon before the number
-                        if when_token is None:
-                            # This : comes before NUMBER, check if double
-                            for j in range(i + 1, len(tree.children)):
-                                if (
-                                    isinstance(tree.children[j], lark.Token)
-                                    and str(tree.children[j]) == ":"
-                                ):
-                                    has_double_colon = True
-                                    break
-
+                    elif child.type == "DOUBLE_COLON":
+                        has_double_colon = True
+            
             if when_token is not None:
                 s_str = str(when_token)
                 v = float(s_str)
@@ -190,11 +184,12 @@ def _at_step(step: int, total_steps: int, tree) -> str:
                     # This is our schedule info from collect_steps
                     schedule_step, is_remove = arg[1], arg[2]
                 elif isinstance(arg, lark.Token):
-                    # Skip colon and number tokens
-                    if arg.type == "NUMBER" or str(arg) == ":":
+                    # Skip DOUBLE_COLON, colon, and number tokens
+                    if arg.type in ("NUMBER", "DOUBLE_COLON") or str(arg) == ":":
                         continue
                     options.append(str(arg) if arg else "")
                 elif arg is not None:
+                    # Keep the arg as-is (could be string or generator)
                     options.append("" if not arg else arg)
 
             # Fallback: if no schedule info, look for NUMBER token
@@ -208,13 +203,11 @@ def _at_step(step: int, total_steps: int, tree) -> str:
                         else:
                             schedule_step = int(v)
                         schedule_step = max(1, min(total_steps, schedule_step))
-                        # Check for double colon by counting colons
-                        colon_count = sum(
-                            1
+                        # Check for double colon token
+                        is_remove = any(
+                            isinstance(a, lark.Token) and a.type == "DOUBLE_COLON"
                             for a in args
-                            if isinstance(a, lark.Token) and str(a) == ":"
                         )
-                        is_remove = colon_count >= 2
                         break
 
             if schedule_step is None:
@@ -224,10 +217,11 @@ def _at_step(step: int, total_steps: int, tree) -> str:
                 return
 
             # Apply scheduling logic
-            # [a|b:when] = nothing before when, alternate after (add at step when)
-            # [a|b::when] = alternate before when, nothing after (remove at step when)
+            # [a|b:when] = first tag before when, alternate after (add at step when)
+            # [a|b::when] = alternate before when, first tag after (remove at step when)
+            
             if is_remove:
-                # ::when - alternate before, nothing after
+                # ::when - alternate before, first tag after
                 if step <= schedule_step:
                     # Alternate
                     if options:
@@ -236,13 +230,13 @@ def _at_step(step: int, total_steps: int, tree) -> str:
                     else:
                         yield ""
                 else:
-                    # After removal, yield nothing
-                    yield ""
+                    # After removal, yield first tag
+                    yield options[0] if options else ""
             else:
-                # :when - nothing before, alternate after
+                # :when - first tag before, alternate after
                 if step <= schedule_step:
-                    # Before the schedule point, yield nothing
-                    yield ""
+                    # Before the schedule point, yield first tag
+                    yield options[0] if options else ""
                 else:
                     # After the schedule point, alternate
                     if options:

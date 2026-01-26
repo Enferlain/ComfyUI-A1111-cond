@@ -328,13 +328,35 @@ app.registerExtension({
       // Copy textarea styles to mirror
       const copyStyles = () => {
         const computed = window.getComputedStyle(textarea);
-        mirrorDiv.style.font = computed.font;
+        
+        // Critical layout properties
+        mirrorDiv.style.boxSizing = computed.boxSizing;
+        mirrorDiv.style.width = computed.width;
+        mirrorDiv.style.height = computed.height;
         mirrorDiv.style.padding = computed.padding;
         mirrorDiv.style.border = computed.border;
-        mirrorDiv.style.borderColor = "transparent";
-        mirrorDiv.style.lineHeight = computed.lineHeight;
+        mirrorDiv.style.borderColor = "transparent"; // Keep invisible
+        
+        // Font properties - copy individually to be safe
+        mirrorDiv.style.fontFamily = computed.fontFamily;
+        mirrorDiv.style.fontSize = computed.fontSize;
+        mirrorDiv.style.fontWeight = computed.fontWeight;
         mirrorDiv.style.letterSpacing = computed.letterSpacing;
-        mirrorDiv.style.width = computed.width;
+        mirrorDiv.style.lineHeight = computed.lineHeight;
+        
+        // Text wrapping properties
+        mirrorDiv.style.whiteSpace = computed.whiteSpace;
+        mirrorDiv.style.wordWrap = computed.wordWrap;
+        mirrorDiv.style.wordBreak = computed.wordBreak;
+        mirrorDiv.style.overflowWrap = computed.overflowWrap;
+        
+        // Handle scrollbar width difference matching
+        // If textarea has a visible scrollbar, force one on mirror so wrapping matches
+        if (textarea.scrollHeight > textarea.clientHeight) {
+             mirrorDiv.style.overflowY = "scroll";
+        } else {
+             mirrorDiv.style.overflowY = "hidden";
+        }
       };
 
       copyStyles();
@@ -344,6 +366,15 @@ app.registerExtension({
         mirrorDiv.scrollTop = textarea.scrollTop;
         mirrorDiv.scrollLeft = textarea.scrollLeft;
       });
+
+      // Use ResizeObserver to keep mirror synced with textarea size
+      const observer = new ResizeObserver(() => {
+        copyStyles();
+        // Force re-sync of scroll after resize as content might reflow
+        mirrorDiv.scrollTop = textarea.scrollTop;
+        mirrorDiv.scrollLeft = textarea.scrollLeft;
+      });
+      observer.observe(textarea);
     };
 
     const updateBoundaryMarkers = () => {
@@ -381,14 +412,23 @@ app.registerExtension({
 
         html += `<span style="
           display: inline-block;
-          width: 2px;
+          width: 0;
           height: 1.2em;
-          background: ${markerColor};
           vertical-align: middle;
-          margin: 0 1px;
+          position: relative;
+          overflow: visible;
+          margin: 0;
+        "><span style="
+          display: block;
+          position: absolute;
+          left: -1px;
+          top: 0;
+          width: 2px;
+          height: 100%;
+          background: ${markerColor};
           border-radius: 1px;
           opacity: 0.7;
-        "></span>`;
+        "></span></span>`;
 
         lastPos = pos;
       }

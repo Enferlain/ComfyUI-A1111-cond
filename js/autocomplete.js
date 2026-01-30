@@ -109,10 +109,14 @@ export function createAutocompletePopup() {
     background: var(--comfy-menu-bg, #353535);
     border: 2px solid var(--border-color, #555);
     border-radius: 6px;
-    max-width: 350px;
-    max-height: 300px;
+    width: max-content;
+    min-width: 250px;
+    max-width: 800px;
+    max-height: 400px;
     overflow-y: auto;
+    overflow-x: hidden;
     display: none;
+    padding: 4px 0;
     box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 13px;
@@ -135,6 +139,14 @@ export function createAutocompletePopup() {
     .a1111-autocomplete-popup::-webkit-scrollbar-thumb:hover {
       background: var(--content-hover-bg, #666);
     }
+    .autocomplete-item:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+    .autocomplete-item.selected {
+      background-color: rgba(74, 158, 255, 0.25) !important;
+      border-left: 3px solid #4a9eff;
+      padding-left: 9px !important;
+    }
   `;
   document.head.appendChild(style);
 
@@ -148,55 +160,100 @@ export function createAutocompletePopup() {
  * @param {number} cursorPos - Cursor position in text
  * @returns {Object} Object with x, y coordinates
  */
-function getCaretCoordinates(textarea, cursorPos) {
-  // Create a mirror div to measure text position
-  const mirror = document.createElement("div");
-  const computed = window.getComputedStyle(textarea);
-  
-  // Copy textarea styles to mirror
-  mirror.style.cssText = `
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    visibility: hidden;
-  `;
-  
-  // Copy all relevant styles
-  const properties = [
-    'font-family', 'font-size', 'font-weight', 'font-style',
-    'letter-spacing', 'line-height', 'padding', 'border',
-    'width', 'height'
-  ];
-  
-  properties.forEach(prop => {
-    mirror.style[prop] = computed[prop];
+// From https://github.com/component/textarea-caret-position
+const CARET_PROPERTIES = [
+  'direction', 'boxSizing', 'width', 'height', 'overflowX', 'overflowY',
+  'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle',
+  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+  'fontStyle', 'fontVariant', 'fontWeight', 'fontStretch', 'fontSize', 'fontSizeAdjust', 'lineHeight', 'fontFamily',
+  'textAlign', 'textTransform', 'textIndent', 'textDecoration',
+  'letterSpacing', 'wordSpacing', 'tabSize', 'MozTabSize',
+  'whiteSpace', 'wordBreak', 'wordWrap', 'overflowWrap'
+];
+
+/**
+ * Get cursor coordinates in the viewport
+ * @param {HTMLTextAreaElement} element - The textarea element
+ * @param {number} position - Cursor position in text
+ * @returns {Object} Object with x, y, height coordinates
+ */
+/**
+ * Get cursor coordinates in the viewport
+ * @param {HTMLTextAreaElement} element - The textarea element
+ * @param {number} position - Cursor position in text
+ * @returns {Object} Object with x, y, height coordinates
+ */
+function getCaretCoordinates(element, position) {
+  if (typeof window === 'undefined') return { x: 0, y: 0, height: 0 };
+
+  // Create a mirror div to replicate the textarea's style in 1:1 layout space
+  const div = document.createElement('div');
+  div.id = 'input-textarea-caret-position-mirror-div';
+  document.body.appendChild(div);
+
+  const style = div.style;
+  const computed = window.getComputedStyle(element);
+
+  // Transfer all layout-affecting properties
+  CARET_PROPERTIES.forEach(prop => {
+    style[prop] = computed[prop];
   });
+
+  // Reset positioning for the mirror
+  style.position = 'absolute';
+  style.visibility = 'hidden';
+  style.pointerEvents = 'none';
+  style.top = '0';
+  style.left = '0';
+
+  // Force scrollbar behavior to match accurately for width calculations
+  if (element.scrollHeight > element.clientHeight) {
+    style.overflowY = 'scroll';
+  } else {
+    style.overflowY = 'hidden';
+  }
+
+  // Replicate text content up to the caret
+  div.textContent = element.value.substring(0, position);
   
-  document.body.appendChild(mirror);
+  const span = document.createElement('span');
+  span.textContent = element.value.substring(position) || '.';
+  div.appendChild(span);
+
+  // Get layout-local coordinates
+  // offsetTop/Left are relative to the div's border box
+  const layoutX = span.offsetLeft;
+  const layoutY = span.offsetTop;
+  const layoutHeight = parseInt(computed.lineHeight) || 20;
+
+  // Cleanup mirror
+  document.body.removeChild(div);
+
+  // Calculate scaling factor between layout and viewport
+  // This is crucial for ComfyUI's zoom/pan
+  const rect = element.getBoundingClientRect();
   
-  // Set text up to cursor position
-  const textBeforeCursor = textarea.value.substring(0, cursorPos);
-  mirror.textContent = textBeforeCursor;
+  // Use offsetWidth as the layout width reference
+  // If offsetWidth is 0 (not visible), fallback to 1 to avoid division by zero
+  const layoutWidth = element.offsetWidth || parseFloat(computed.width) || 1;
+  const scale = rect.width / layoutWidth;
+
+  // Map local layout coordinates to viewport coordinates
+  // We account for: 
+  // 1. Textarea's viewport position (rect.left/top)
+  // 2. Local caret offset in layout units (layoutX/Y)
+  // 3. Current scroll position (element.scrollLeft/Top)
+  // 4. Transform scale (scale)
+  // 5. Borders (computed border width)
   
-  // Add a span to measure cursor position
-  const span = document.createElement("span");
-  span.textContent = "|";
-  mirror.appendChild(span);
-  
-  // Get textarea position
-  const textareaRect = textarea.getBoundingClientRect();
-  const spanRect = span.getBoundingClientRect();
-  const mirrorRect = mirror.getBoundingClientRect();
-  
-  // Calculate position relative to textarea
-  const x = textareaRect.left + (spanRect.left - mirrorRect.left) - textarea.scrollLeft;
-  const y = textareaRect.top + (spanRect.top - mirrorRect.top) - textarea.scrollTop;
-  
-  document.body.removeChild(mirror);
-  
-  return { x, y };
+  const borderLeft = parseInt(computed.borderLeftWidth) || 0;
+  const borderTop = parseInt(computed.borderTopWidth) || 0;
+
+  return {
+    x: rect.left + (layoutX + borderLeft - element.scrollLeft) * scale,
+    y: rect.top + (layoutY + borderTop - element.scrollTop) * scale,
+    height: layoutHeight * scale
+  };
 }
 
 /**
@@ -212,8 +269,6 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
   }
 
   const popup = createAutocompletePopup();
-  
-  // Apply frequency sorting to suggestions
   const sortedSuggestions = sortByFrequency(suggestions);
   
   currentResults = sortedSuggestions;
@@ -221,29 +276,30 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
   currentTextarea = textarea;
   currentWordInfo = wordInfo;
 
-  // Clear previous content
   popup.innerHTML = "";
 
-  // Create result items
   sortedSuggestions.forEach((tag, index) => {
     const item = document.createElement("div");
     item.className = "autocomplete-item";
     item.style.cssText = `
-      padding: 8px 12px;
+      padding: 8px 16px;
       cursor: pointer;
       border-bottom: 1px solid var(--border-color, #444);
       display: flex;
       justify-content: space-between;
       align-items: center;
       transition: background-color 0.15s ease;
+      gap: 20px;
     `;
 
-    // Tag name and alias info
     const nameSpan = document.createElement("span");
     nameSpan.style.cssText = `
       color: ${TAG_COLORS[tag.type] || "var(--fg-color, #ccc)"};
       font-weight: 500;
       flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     `;
     
     let displayName = tag.name;
@@ -253,7 +309,6 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
     }
     nameSpan.textContent = displayName;
 
-    // Frequency indicator (if used before)
     const frequency = getTagFrequency(tag.name);
     if (frequency > 0) {
       const freqSpan = document.createElement("span");
@@ -266,11 +321,9 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
         border-radius: 3px;
       `;
       freqSpan.textContent = `★${frequency}`;
-      freqSpan.title = `Used ${frequency} time${frequency > 1 ? 's' : ''}`;
       nameSpan.appendChild(freqSpan);
     }
 
-    // Post count
     const countSpan = document.createElement("span");
     countSpan.style.cssText = `
       color: var(--descrip-text, #888);
@@ -281,39 +334,26 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
 
     item.appendChild(nameSpan);
     item.appendChild(countSpan);
-
-    // Click handler
-    item.addEventListener("click", () => {
-      insertTag(index);
-    });
-
-    // Hover handler
-    item.addEventListener("mouseenter", () => {
-      setSelectedIndex(index);
-    });
-
+    item.addEventListener("click", () => insertTag(index));
     popup.appendChild(item);
   });
 
-  // Position popup near cursor
+  // Calculate position using robust caret logic
   const coords = getCaretCoordinates(textarea, wordInfo.start);
-  popup.style.left = `${coords.x}px`;
-  popup.style.top = `${coords.y + 20}px`; // Offset below cursor
-
-  // Ensure popup stays in viewport
-  const rect = popup.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
+  const popupHeight = Math.min(300, currentResults.length * 40); // Estimate
   const viewportHeight = window.innerHeight;
-
-  if (rect.right > viewportWidth) {
-    popup.style.left = `${viewportWidth - rect.width - 10}px`;
+  
+  // Decide whether to show above or below
+  let top = coords.y + coords.height + 5;
+  if (top + popupHeight > viewportHeight - 10) {
+    // Show above if it doesn't fit below
+    top = coords.y - popupHeight - 5;
   }
-  if (rect.bottom > viewportHeight) {
-    popup.style.top = `${coords.y - rect.height - 5}px`; // Show above cursor
-  }
 
+  popup.style.left = `${Math.max(10, Math.min(coords.x, window.innerWidth - 360))}px`;
+  popup.style.top = `${top}px`;
   popup.style.display = "block";
-  setSelectedIndex(0); // Select first item by default
+  setSelectedIndex(-1);
 }
 
 /**
@@ -369,14 +409,14 @@ function setSelectedIndex(index) {
   // Remove previous selection
   const items = autocompletePopup.querySelectorAll(".autocomplete-item");
   items.forEach(item => {
-    item.style.backgroundColor = "";
+    item.classList.remove("selected");
   });
 
-  // Set new selection
-  selectedIndex = Math.max(0, Math.min(index, currentResults.length - 1));
-  if (items[selectedIndex]) {
-    // Use theme variable for hover background
-    items[selectedIndex].style.backgroundColor = "var(--interface-panel-hover-surface, var(--content-hover-bg, #404040))";
+  // Set new selection, allowing -1 for "no selection"
+  selectedIndex = Math.max(-1, Math.min(index, currentResults.length - 1));
+  
+  if (selectedIndex >= 0 && items[selectedIndex]) {
+    items[selectedIndex].classList.add("selected");
     
     // Scroll into view if needed
     items[selectedIndex].scrollIntoView({
@@ -399,44 +439,39 @@ function insertTag(index = selectedIndex) {
   const textarea = currentTextarea;
   const wordInfo = currentWordInfo;
 
-  // Track tag usage for frequency sorting
   incrementTagFrequency(tag.name);
 
-  // Get current text and cursor position
   const text = textarea.value;
-  const cursorPos = textarea.selectionStart;
-
-  // Replace the current word with the selected tag
   let tagName = tag.name;
   
-  // Convert underscores to spaces (configurable behavior)
+  // Configurable A1111 formatting (usually on by default)
   tagName = tagName.replace(/_/g, " ");
-  
-  // Escape parentheses in tag names (for A1111 compatibility)
   tagName = tagName.replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 
-  // Build new text
   const beforeWord = text.substring(0, wordInfo.start);
   const afterWord = text.substring(wordInfo.end);
   
-  // Always add comma and space after tag completion
-  // This prevents autocomplete from triggering on the just-completed tag
-  const suffix = ", ";
+  // Smart separator logic from reference
+  // Only add if not already present
+  let suffix = "";
+  const matchAfter = afterWord.match(/^\s*[,:]/);
+  if (!matchAfter) {
+    suffix = ", ";
+  } else if (!afterWord.startsWith(", ")) {
+    // If it has a comma but no space, maybe add space
+    if (afterWord.startsWith(",") && !afterWord.startsWith(", ")) {
+      // Just ensure space exists after
+    }
+  }
 
   const newText = beforeWord + tagName + suffix + afterWord;
   const newCursorPos = beforeWord.length + tagName.length + suffix.length;
 
-  // Hide popup BEFORE updating textarea to prevent re-triggering
   hideAutocompletePopup();
 
-  // Update textarea
   textarea.value = newText;
   textarea.setSelectionRange(newCursorPos, newCursorPos);
-
-  // Trigger change event for ComfyUI (but popup is already hidden)
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
-
-  // Focus back to textarea
   textarea.focus();
 }
 
@@ -450,19 +485,34 @@ function handleKeyboardNavigation(e) {
     return false;
   }
 
+  const length = currentResults.length;
+
   switch (e.key) {
     case "ArrowDown":
       e.preventDefault();
-      setSelectedIndex(selectedIndex + 1);
+      if (selectedIndex === -1) {
+        setSelectedIndex(0);
+      } else {
+        setSelectedIndex((selectedIndex + 1) % length);
+      }
       return true;
 
     case "ArrowUp":
       e.preventDefault();
-      setSelectedIndex(selectedIndex - 1);
+      if (selectedIndex === -1) {
+        setSelectedIndex(length - 1);
+      } else {
+        setSelectedIndex((selectedIndex - 1 + length) % length);
+      }
       return true;
 
     case "Tab":
     case "Enter":
+      if (selectedIndex === -1) {
+        // No selection, allow default behavior (like newline)
+        hideAutocompletePopup();
+        return false;
+      }
       e.preventDefault();
       insertTag();
       return true;
@@ -581,17 +631,20 @@ if (typeof window !== 'undefined') {
  * @returns {Object} Object with word, start, and end positions
  */
 export function getCurrentWord(text, cursorPos) {
-  // Find word boundaries - tags are separated by commas, spaces, or parentheses
+  // Find word boundaries - tags are separated by commas, spaces, parentheses, colons, brackets, etc.
+  // Matching reference regex logic: [^\s,|<>():\[\]]
   let start = cursorPos;
   let end = cursorPos;
 
+  const isSeparator = (char) => /[\s,()|<>:\[\]]/.test(char);
+
   // Move start back to word boundary
-  while (start > 0 && !/[\s,()]/.test(text[start - 1])) {
+  while (start > 0 && !isSeparator(text[start - 1])) {
     start--;
   }
 
   // Move end forward to word boundary
-  while (end < text.length && !/[\s,()]/.test(text[end])) {
+  while (end < text.length && !isSeparator(text[end])) {
     end++;
   }
 

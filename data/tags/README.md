@@ -7,6 +7,7 @@ This directory contains CSV files with tag databases for autocomplete functional
 ## Available Tag Files
 
 The autocomplete system will automatically look for tag files in:
+
 1. This directory (`data/tags/`)
 
 ## Currently Available Files
@@ -19,11 +20,13 @@ The autocomplete system will automatically look for tag files in:
 ## CSV Format
 
 Tag files use the following CSV format:
+
 ```
 name,type,postCount,"aliases"
 ```
 
 Example:
+
 ```csv
 1girl,0,6008644,"1girls,sole_female"
 solo,0,3426446,"female_solo,solo_female"
@@ -31,13 +34,13 @@ solo,0,3426446,"female_solo,solo_female"
 
 ### Tag Types
 
-| Type | Category  | Color       |
-|------|-----------|-------------|
-| 0    | General   | Light Blue  |
-| 1    | Artist    | Red         |
-| 3    | Copyright | Violet      |
-| 4    | Character | Green       |
-| 5    | Meta      | Orange      |
+| Type | Category  | Color      |
+| ---- | --------- | ---------- |
+| 0    | General   | Light Blue |
+| 1    | Artist    | Red        |
+| 3    | Copyright | Violet     |
+| 4    | Character | Green      |
+| 5    | Meta      | Orange     |
 
 ## Adding Custom Tags
 
@@ -65,11 +68,11 @@ The autocomplete will automatically use this file on next load.
 
 ### Method 2: Modify the Backend (Advanced)
 
-Edit `api/autocomplete.py` and change the default tag file:
+Edit `api/autocomplete.py` and change the `DEFAULT_TAG_FILE` constant at the top of the file:
 
 ```python
-def ensure_database_loaded(tag_file: str = "danbooru_e621_merged.csv") -> TagDatabase:
-    # Change the default from "danbooru.csv" to your preferred file
+# Default tag file to use if not specified
+DEFAULT_TAG_FILE = "danbooru_e621_merged.csv"
 ```
 
 ### Available Tag Files
@@ -91,6 +94,7 @@ After changing the tag file, restart ComfyUI or reload the page for changes to t
 ## Usage
 
 The autocomplete system will:
+
 - Load tags on first search (lazy loading)
 - Search by tag name and aliases
 - Sort results by relevance and post count

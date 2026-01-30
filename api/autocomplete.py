@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Tuple
 try:
     from aiohttp import web
     from server import PromptServer
+
     _HAS_SERVER = True
 except ImportError:
     _HAS_SERVER = False
@@ -33,6 +34,9 @@ TAG_TYPES = {
 
 # Get the data directory path
 DATA_DIR = Path(__file__).parent.parent / "data" / "tags"
+
+# Default tag file to use if not specified
+DEFAULT_TAG_FILE = "danbooru.csv"
 
 
 class TagEntry:
@@ -105,7 +109,7 @@ class TagDatabase:
         try:
             loaded_count = 0
             existing_tags = {tag.name for tag in self._tags}
-            
+
             with open(filepath, "r", encoding="utf-8", errors="replace") as f:
                 reader = csv.reader(f)
                 for row in reader:
@@ -243,7 +247,10 @@ def get_database() -> TagDatabase:
     return _database
 
 
-def ensure_database_loaded(tag_file: str = "danbooru.csv", extra_files: Optional[List[str]] = None) -> TagDatabase:
+def ensure_database_loaded(
+    tag_file: str = DEFAULT_TAG_FILE,
+    extra_files: Optional[List[str]] = None,
+) -> TagDatabase:
     """
     Ensure the database is loaded, loading it if necessary.
 
@@ -267,11 +274,11 @@ def ensure_database_loaded(tag_file: str = "danbooru.csv", extra_files: Optional
     if needs_reload:
         # Find and load all tag files
         filepaths = []
-        
+
         for filename in files_to_load:
             # Try main data directory first
             filepath = DATA_DIR / filename
-            
+
             # Fall back to reference directory
             if not filepath.exists():
                 ref_path = (
@@ -283,12 +290,12 @@ def ensure_database_loaded(tag_file: str = "danbooru.csv", extra_files: Optional
                 )
                 if ref_path.exists():
                     filepath = ref_path
-            
+
             if filepath.exists():
                 filepaths.append(filepath)
             else:
                 print(f"[Autocomplete] Warning: Tag file not found: {filename}")
-        
+
         if filepaths:
             db.load_multiple(filepaths)
 
@@ -297,6 +304,7 @@ def ensure_database_loaded(tag_file: str = "danbooru.csv", extra_files: Optional
 
 # Register API endpoints (only if server is available)
 if _HAS_SERVER and PromptServer:
+
     @PromptServer.instance.routes.post("/a1111_prompt/autocomplete")
     async def autocomplete_tags(request):
         """
@@ -332,18 +340,24 @@ if _HAS_SERVER and PromptServer:
 
         query = data.get("query", "")
         limit = min(data.get("limit", 20), 100)  # Cap at 100
-        tag_file = data.get("tag_file", "danbooru.csv")
-        extra_files = data.get("extra_files", ["extra-quality-tags.csv"])  # Load quality tags by default
+        tag_file = data.get(
+            "tag_file"
+        )  # Will use DEFAULT_TAG_FILE in ensure_database_loaded if None
+        extra_files = data.get(
+            "extra_files", ["extra-quality-tags.csv"]
+        )  # Load quality tags by default
         search_aliases = data.get("search_aliases", True)
 
         # Ensure database is loaded
-        db = ensure_database_loaded(tag_file, extra_files=extra_files)
+        if tag_file:
+            db = ensure_database_loaded(tag_file, extra_files=extra_files)
+        else:
+            db = ensure_database_loaded(extra_files=extra_files)
 
         # Perform search
         results = db.search(query, limit=limit, search_aliases=search_aliases)
 
         return web.json_response({"results": results, "tag_count": db.tag_count})
-
 
     @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/status")
     async def autocomplete_status(request):
@@ -365,7 +379,6 @@ if _HAS_SERVER and PromptServer:
                 "current_files": db._current_files,
             }
         )
-
 
     @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/files")
     async def list_tag_files(request):

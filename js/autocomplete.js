@@ -677,9 +677,16 @@ app.registerExtension({
       }
 
       const textarea = textWidget.inputEl;
+      let suppressAutocomplete = false;
 
       // Add input event listener for autocomplete
       textarea.addEventListener("input", async (e) => {
+        if (suppressAutocomplete) {
+          suppressAutocomplete = false;
+          hideAutocompletePopup();
+          return;
+        }
+
         // Clear existing debounce
         if (debounceTimeout) {
           clearTimeout(debounceTimeout);
@@ -705,6 +712,25 @@ app.registerExtension({
 
       // Add keydown event listener for navigation
       textarea.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace") {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          if (start === end && start > 0) {
+            const char = textarea.value[start - 1];
+            // If the character being deleted is a separator, suppress the next input event
+            if (/[\s,()|<>:\[\]]/.test(char)) {
+              suppressAutocomplete = true;
+            } else {
+              suppressAutocomplete = false;
+            }
+          } else {
+            suppressAutocomplete = false;
+          }
+        } else {
+          // Any other key clears the suppression
+          suppressAutocomplete = false;
+        }
+
         if (handleKeyboardNavigation(e)) {
           // Event was handled by autocomplete
           return;

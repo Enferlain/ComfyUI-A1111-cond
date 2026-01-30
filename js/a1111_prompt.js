@@ -28,7 +28,7 @@ import {
 app.registerExtension({
   name: "A1111PromptNode.ShowText",
   async beforeRegisterNodeDef(nodeType, nodeData, app) {
-    if (nodeData.name === "A1111Prompt") {
+    if (nodeData.name === "A1111Prompt" || nodeData.name === "A1111PromptNegative") {
       /**
        * Populate the node with a readonly text widget showing the prompt
        */
@@ -41,7 +41,18 @@ app.registerExtension({
         // Get the actual text value (could be an array)
         const textValue = Array.isArray(text) ? text[0] : text;
 
-        if (!textValue) return;
+        const currentText = this.widgets?.find((w) => w.name === "text")?.value || "";
+        
+        // Only show if the effective prompt is different from the input text
+        // This avoids clutter when no expansion (TIPO, etc.) is happening
+        if (!textValue || textValue === currentText) {
+          if (displayWidget) {
+            // Hide the widget if it exists but is no longer needed
+            displayWidget.type = "converted-widget"; // Effectively hides it in ComfyUI
+            if (displayWidget.inputEl) displayWidget.inputEl.style.display = "none";
+          }
+          return;
+        }
 
         if (!displayWidget) {
           // Create a new readonly widget to show the prompt
@@ -61,6 +72,9 @@ app.registerExtension({
           displayWidget.serialize = false;
         }
 
+        // Ensure it's visible if we're populating it
+        displayWidget.type = "customtext";
+        if (displayWidget.inputEl) displayWidget.inputEl.style.display = "block";
         displayWidget.value = textValue;
 
         // Resize node to fit the new widget content

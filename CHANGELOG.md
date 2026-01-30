@@ -1,24 +1,53 @@
 # Changelog
 
-## [Unreleased] - Hook System Refactor + Auto Step Detection
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased] - 2026-01-31
+
+### Added
+
+- Extended JS frontend support to the Negative Prompt Node:
+  - **Autocomplete**: Enabled tag autocomplete for negative prompts.
+  - **Token Counter**: Header display and detailed tooltip now show for negative nodes.
+  - **Sequence Visualizers**: Added blue `BREAK` markers and orange 75-token chunk markers to the negative prompt textarea.
+
+### Changed
+
+- **Smart "Effective Prompt" Visibility**: The expanded prompt view now automatically hides itself when it's identical to the user-typed prompt (e.g., when no TIPO expansion or wildcards are active).
+- **Refined Autocomplete Behavior**: The autocomplete popup now suppresses itself when deleting separator characters (comma, space, brackets) via Backspace, preventing unnecessary popups on already "finished" tags.
+
+### Fixed
+
+- Fixed Negative Prompt node missing UI feedback functionality that was present in the positive node.
+
+---
+
+## [Unreleased] - Pre 2026/1/31 changes
 
 ### 🎉 Major Changes
 
 #### Removed MODEL Input Requirement
+
 The node now uses ComfyUI's `TransformerOptionsHook` system instead of requiring a MODEL input. This makes workflows simpler and more intuitive.
 
 **Before:**
+
 ```
 MODEL ──► A1111 Prompt ──► MODEL ──► Sampler
 CLIP  ──►                ──► COND  ──►
 ```
 
 **After:**
+
 ```
 CLIP ──► A1111 Prompt ──► COND ──► Sampler
 ```
 
 #### Automatic Step Detection
+
 The node now automatically detects the step count from connected sampler/scheduler nodes by inspecting the workflow graph. No manual configuration needed!
 
 ### ✨ New Features
@@ -48,12 +77,14 @@ The node now automatically detects the step count from connected sampler/schedul
 ### ⚠️ Breaking Changes
 
 **Node Signature Changed:**
+
 - **Removed**: `model` input (optional)
 - **Removed**: `model` output
 - **Added**: Hidden `prompt` and `unique_id` inputs for graph traversal
 - **Changed**: `steps` parameter now defaults to 0 (auto-detect) instead of 20
 
 **Migration Required:**
+
 - Remove MODEL connections from A1111 Style Prompt nodes
 - Connect CONDITIONING directly to sampler
 - Connect checkpoint MODEL directly to sampler (bypass the prompt node)
@@ -78,18 +109,21 @@ See MIGRATION_GUIDE.md for detailed migration instructions.
 ## Previous Releases
 
 ### Tag Autocomplete System
+
 - Added A1111-style tag autocomplete
 - Support for Danbooru/e621 databases
 - Frequency tracking and sorting
 - Theme-aware UI
 
 ### Token Counter
+
 - Real-time token counting
 - Visual boundary markers
 - BREAK-aware counting
 - Warning colors for long prompts
 
 ### Core Features
+
 - A1111-style prompt parsing
 - Scheduling syntax `[from:to:when]`
 - Alternation syntax `[A|B]`

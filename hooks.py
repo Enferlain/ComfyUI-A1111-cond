@@ -43,9 +43,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         self.default_steps = default_steps
         self._last_logged_step = -1
         self._first_swap_logged = False  # Track if we've logged the first swap
-
-        # Don't use transformers_dict - we'll set model_function_wrapper directly
-        self.transformers_dict = {}
+        self.transformers_dict = {}  # Required by base class on_apply_hooks
 
     def add_hook_patches(self, model, model_options, target_dict, registered):
         """Override to set model_function_wrapper directly on model_options."""
@@ -286,6 +284,22 @@ class A1111StepConditioningHook(TransformerOptionsHook):
                 )
                 logger.debug("[A1111 Hook] === SWAP COMPLETE ===")
                 self._first_swap_logged = True  # Mark first swap as complete
+
+            # Explicit tensor cleanup to prevent accumulation
+            if target_seq_len != orig_seq_len:
+                if "expanded_orig" in locals():
+                    del expanded_orig
+                if "expanded_new" in locals():
+                    del expanded_new
+                if "new_cond" in locals():
+                    del new_cond
+
+            # Optional: Periodic cache clearing to prevent GPU fragmentation
+            # Commented out: Normally ComfyUI manages this fine.
+            # Re-enable only if experiencing OOM on long scheduled runs.
+            # if self._last_logged_step % 20 == 0 and torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
+
         elif not self._first_swap_logged:
             logger.warning("[A1111 Hook] Conditioning swap skipped!")
             if target_cond is None:

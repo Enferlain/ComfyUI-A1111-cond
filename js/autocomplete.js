@@ -101,6 +101,15 @@ export function createAutocompletePopup() {
 
   autocompletePopup = document.createElement("div");
   autocompletePopup.className = "a1111-autocomplete-popup";
+  autocompletePopup.id = "a1111-autocomplete-popup";
+  
+  // Clear blur timeout if user clicks on popup
+  autocompletePopup.addEventListener("mousedown", (e) => {
+    if (currentTextarea && currentTextarea._a1111_autocomplete_blur_timeout) {
+      clearTimeout(currentTextarea._a1111_autocomplete_blur_timeout);
+      currentTextarea._a1111_autocomplete_blur_timeout = null;
+    }
+  }, true);
   
   // Use ComfyUI theme variables for consistent theming
   autocompletePopup.style.cssText = `
@@ -139,13 +148,26 @@ export function createAutocompletePopup() {
     .a1111-autocomplete-popup::-webkit-scrollbar-thumb:hover {
       background: var(--content-hover-bg, #666);
     }
+    .autocomplete-item {
+      padding: 8px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-color, #444);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.15s ease;
+      gap: 20px;
+    }
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
     .autocomplete-item:hover {
       background-color: rgba(255, 255, 255, 0.05);
     }
     .autocomplete-item.selected {
       background-color: rgba(74, 158, 255, 0.25) !important;
       border-left: 3px solid #4a9eff;
-      padding-left: 9px !important;
+      padding-left: 13px !important;
     }
   `;
   document.head.appendChild(style);
@@ -279,16 +301,6 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
   sortedSuggestions.forEach((tag, index) => {
     const item = document.createElement("div");
     item.className = "autocomplete-item";
-    item.style.cssText = `
-      padding: 8px 16px;
-      cursor: pointer;
-      border-bottom: 1px solid var(--border-color, #444);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: background-color 0.15s ease;
-      gap: 20px;
-    `;
 
     const nameSpan = document.createElement("span");
     nameSpan.style.cssText = `
@@ -564,7 +576,16 @@ export async function fetchTagSuggestions(query, limit = 20) {
     return data.results || [];
   } catch (error) {
     console.warn("Autocomplete fetch error:", error);
-    return [];
+    
+    // Show error in popup
+    const popup = createAutocompletePopup();
+    popup.innerHTML = `
+      <div style="padding: 10px; color: #ff6b6b; font-size: 12px; border-bottom: 1px solid #444;">
+        <strong>Error:</strong> Failed to fetch tags from backend.
+      </div>
+    `;
+    popup.style.display = "block";
+    return null; // Return null to indicate error, differentiating from empty results
   }
 }
 
@@ -692,6 +713,10 @@ app.registerExtension({
 
           if (wordInfo.word.length >= 2) {
             const suggestions = await fetchTagSuggestions(wordInfo.word);
+            if (suggestions === null) {
+              // Error already shown in popup
+              return;
+            }
             if (suggestions.length > 0) {
               showAutocompleteSuggestions(suggestions, textarea, wordInfo);
             } else {
@@ -732,29 +757,43 @@ app.registerExtension({
 
       // Hide popup on blur (with delay to allow clicks)
       textarea.addEventListener("blur", () => {
-        setTimeout(() => {
+        textarea._a1111_autocomplete_blur_timeout = setTimeout(() => {
           hideAutocompletePopup();
+          textarea._a1111_autocomplete_blur_timeout = null;
         }, 200);
       });
 
       // Hide popup when clicking outside
-      document.addEventListener("click", (e) => {
+      const outsideClickListener = (e) => {
         if (autocompletePopup && 
             !autocompletePopup.contains(e.target) && 
             e.target !== textarea) {
           hideAutocompletePopup();
         }
-      });
+      };
+      document.addEventListener("click", outsideClickListener);
+      
+      // Store for cleanup
+      node._outsideClickListener = outsideClickListener;
     };
 
     requestAnimationFrame(waitForTextarea);
+
+    // Add cleanup on node removal
+    const onRemoved = node.onRemoved;
+    node.onRemoved = function () {
+      if (onRemoved) onRemoved.apply(this, arguments);
+
+      // Remove the specific document click listener for this node
+      if (this._outsideClickListener) {
+        document.removeEventListener("click", this._outsideClickListener);
+        this._outsideClickListener = null;
+      }
+    };
   },
   onRemoved() {
-    // Global cleanup if needed when extension is removed (less common in ComfyUI, 
-    // but good practice if the extension is ever reloadable)
-    if (autocompletePopup && autocompletePopup.parentNode) {
-      autocompletePopup.parentNode.removeChild(autocompletePopup);
-      autocompletePopup = null;
-    }
+    // Global cleanup if needed when extension is removed
+    autocompletePopup?.parentNode?.removeChild(autocompletePopup);
+    autocompletePopup = null;
   },
 });

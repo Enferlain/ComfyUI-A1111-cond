@@ -7,24 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-02-02
 
-### Added
+- **API Normalization**: The `autocomplete` API now robustly handles the `extra_files` parameter, coercing strings to lists and providing sensible defaults.
+- **Memory Management Refinements**:
+  - **Bounded Caching**: Implemented instance-level prompt encoding cache with strict enforcement during execution to prevent unbounded growth.
+  - **Internal Cleanup**: Added explicit tensor deletion in `hooks.py` to prevent accumulation.
+  - **Leak Prevention**: Refactored frontend extensions to properly disconnect `ResizeObserver` instances and remove global click listeners upon node removal.
 
-- **API Normalization**: The `autocomplete` API now robustly handles the `extra_files` parameter, coercing strings to lists and providing sensible defaults to prevent server-side errors.
-
-### Fixed
-
-- **Documentation Improvements**:
-  - Removed outdated `steps` input from `README.md` to reflect new auto-detection behavior.
-  - Fixed MD040 markdown linting errors across all README files (added missing language tags to code blocks).
-  - Clarified step-based vs. percentage-based syntax requirements in the main documentation.
-- **JS Lifecycle Cleanup**:
-  - Implemented `ResizeObserver` disconnection and DOM cleanup in the token counter logic to prevent memory leaks.
-  - Added defensive `try...finally` blocks for DOM mirror operations to ensure layout artifacts are always cleaned up.
-  - Removed dead code in tag insertion suffix logic.
-- **Backend Optimizations**:
-  - Optimized workflow graph traversal using `collections.deque` for O(1) queue operations, significantly improving performance for large workflows.
-  - Suppressed unused variable warnings in `hooks.py` while preserving code for technical parity testing.
-  - Cleaned up redundant f-string prefixes for improved clarity and minor performance gains.
+- **Hotfixes & Stability**:
+  - **Backend**: Restored missing `transformers_dict` initialization in `hooks.py` to fix `AttributeError` crash.
+  - **Frontend**: Merged duplicate `nodeCreated` hooks in `autocomplete.js` to restore extension functionality.
+- **UI & Aesthetics**:
+  - **Refined Autocomplete**: Cleaned up popup CSS (removed redundant last-row border) and localized "blur" timeouts to node instances.
+  - **Error Visibility**: Added visible error indicators to the autocomplete popup for backend failures.
+- **Documentation**: Fixed MD040 linter errors across all READMEs and created `EXPERIMENTAL.md` for hook research.
 
 ## [Unreleased] - 2026-01-31
 

@@ -15,6 +15,11 @@
 - [x] **Memory Leak Fixes**:
   - [x] Implemented `onRemoved` cleanup for token counter and autocomplete popups
   - [x] Added `try...finally` for defensive DOM cleanup in coordinate calculations
+  - [x] Localized autocomplete blur timeouts to node instances
+- [x] **Memory Management**:
+  - [x] Implemented instance-level prompt encoding cache
+  - [x] Enforced cache limits during execution to prevent single-run spikes
+  - [x] Added explicit tensor cleanup in hooks
 - [x] **Performance**: Optimized BFS graph traversal using `collections.deque`
 - [x] **API Robustness**:
   - [x] Added normalization for `extra_files` parameters
@@ -131,10 +136,17 @@
 ### Technical Debt & Refinement
 
 - [ ] Standardize null-checking patterns across all JS files (prefer `?.`)
-- [ ] Improve blur handling race condition in autocomplete (timeout/clearTimeout pattern)
+- [x] Improve blur handling race condition in autocomplete (timeout/clearTimeout pattern)
 - [ ] Add unit tests for graph traversal logic (`_get_downstream_steps`)
 - [ ] Add JSDoc comments to all public functions in `autocomplete.js`
 - [ ] Standardize error response formatting across all backend API endpoints
+- [ ] Implement LRU (Least Recently Used) caching policy in `nodes/prompt_node.py` (improve current "clear full" strategy)
+- [ ] Add query validation (max length) to autocomplete API endpoint
+- [ ] Refine CUDA cache clearing (smarter fragmentation detection / configurable threshold)
+- [ ] Modularize `js/autocomplete.js` (separate coordinates, sorting, and UI logic)
+- [ ] Complete CSS variable conversion for all UI elements (Themes support)
+- [ ] Add rate limiting/throttling to autocomplete API endpoint
+- [ ] Refactor `model_function_wrapper` chaining into a reusable utility
 
 ---
 

@@ -401,6 +401,9 @@ app.registerExtension({
       });
 
       // Use ResizeObserver to keep mirror synced with textarea size
+      if (node._boundaryObserver) {
+        node._boundaryObserver.disconnect();
+      }
       const observer = new ResizeObserver(() => {
         copyStyles();
         // Force re-sync of scroll after resize as content might reflow

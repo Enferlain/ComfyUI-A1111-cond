@@ -21,6 +21,10 @@ logger = logging.getLogger("A1111PromptNode")
 
 
 class A1111PromptNode:
+    def __init__(self):
+        self._encoded_cache = {}
+        self._max_cache_size = 50  # Limit unique prompts cached across executions
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -223,10 +227,16 @@ class A1111PromptNode:
                 "result": ([[cond, {"pooled_output": pooled}]],),
             }
 
-        # Use step-based conditioning for strict A1111 parity
+        # Use instance-level cache with size limit
         logger.info("[A1111 Prompt] Scheduling detected - encoding unique prompts...")
-        encoded_cache = {}
         unique_prompts = list(set(full_step_prompts))
+
+        # Clear cache if it gets too large
+        if len(self._encoded_cache) > self._max_cache_size:
+            logger.info("[A1111 Prompt] Cache full, clearing...")
+            self._encoded_cache.clear()
+
+        encoded_cache = self._encoded_cache
         logger.info(
             f"[A1111 Prompt] Found {len(unique_prompts)} unique prompts to encode"
         )
@@ -234,6 +244,14 @@ class A1111PromptNode:
         for i, prompt_text in enumerate(unique_prompts):
             if prompt_text in encoded_cache:
                 continue
+
+            # Defensive: Clear cache if it grows too large during a single execution
+            if len(self._encoded_cache) >= self._max_cache_size:
+                logger.info("[A1111 Prompt] Cache full during execution, clearing...")
+                self._encoded_cache.clear()
+                # Re-reference after clear (though it's the same object, it's safer)
+                encoded_cache = self._encoded_cache
+
             logger.info(
                 f"[A1111 Prompt] Encoding prompt {i + 1}/{len(unique_prompts)}: {prompt_text[:50]}..."
             )

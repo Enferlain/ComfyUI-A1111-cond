@@ -16,9 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hotfixes & Stability**:
   - **Backend**: Restored missing `transformers_dict` initialization in `hooks.py` to fix `AttributeError` crash.
   - **Frontend**: Merged duplicate `nodeCreated` hooks in `autocomplete.js` to restore extension functionality.
-- **UI & Aesthetics**:
-  - **Refined Autocomplete**: Cleaned up popup CSS (removed redundant last-row border) and localized "blur" timeouts to node instances.
-  - **Error Visibility**: Added visible error indicators to the autocomplete popup for backend failures.
+- **Performance Optimization**:
+  - **Shared Caching**: Implemented a structural result cache in `hooks.py` that persists across hook clones, critical for 2nd order samplers (DPM++ 2M, etc.).
+  - **GPU Pre-Allocation**: Moved all embeddings to the GPU during the encoding phase to eliminate device-transfer latency.
+  - **Zero-Allocation Hot-Path**: Reduced Python overhead to the absolute minimum for standard and scheduled runs.
+- **Log Management**: Silenced all verbose console logs (encoding progress, graph traversal, and hook execution) behind the `debug` flag.
+- **Stability & Determinism**: Fixed a regression in the identity check logic that caused intermittent "skipped swaps" and ensured perfect image consistency across all sampler types.
 - **Documentation**: Fixed MD040 linter errors across all READMEs and created `EXPERIMENTAL.md` for hook research.
 
 ## [Unreleased] - 2026-01-31
@@ -51,14 +54,14 @@ The node now uses ComfyUI's `TransformerOptionsHook` system instead of requiring
 
 **Before:**
 
-```
+```text
 MODEL ──► A1111 Prompt ──► MODEL ──► Sampler
 CLIP  ──►                ──► COND  ──►
 ```
 
 **After:**
 
-```
+```text
 CLIP ──► A1111 Prompt ──► COND ──► Sampler
 ```
 

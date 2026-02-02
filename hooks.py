@@ -32,17 +32,25 @@ class A1111StepConditioningHook(TransformerOptionsHook):
     during sampling and uses it to determine current step and swap embeddings.
     """
 
-    def __init__(self, step_embeddings, default_steps=20):
+    def __init__(
+        self, step_embeddings, default_steps=28, debug=False, shared_cache=None
+    ):
         """
         Args:
             step_embeddings: List of (cond_tensor, pooled_tensor) per step index
-            default_steps: Default step count used for parsing (for scaling)
+            default_steps: Original steps used to parse symbols (for scaling)
+            debug: Whether to log verbose scheduling information
+            shared_cache: Optional dict to share between hook clones
         """
         super().__init__(hook_scope=EnumHookScope.AllConditioning)
         self.step_embeddings = step_embeddings
         self.default_steps = default_steps
+        self.debug = debug
         self._last_logged_step = -1
         self._first_swap_logged = False  # Track if we've logged the first swap
+
+        # Share cache across clones to prevent performance regression in 2nd order samplers
+        self._swap_cache = shared_cache if shared_cache is not None else {}
         self.transformers_dict = {}  # Required by base class on_apply_hooks
 
     def add_hook_patches(self, model, model_options, target_dict, registered):
@@ -53,9 +61,10 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         # Check if there's already a wrapper - we need to chain them
         existing_wrapper = model_options.get("model_function_wrapper")
         if existing_wrapper is not None:
-            logger.warning(
-                "[A1111 Hook] Found existing model_function_wrapper, will chain them"
-            )
+            if self.debug:
+                logger.warning(
+                    "[A1111 Hook] Found existing model_function_wrapper, will chain them"
+                )
 
             # Create a chained wrapper
             def chained_wrapper(apply_model_func, args):
@@ -66,9 +75,10 @@ class A1111StepConditioningHook(TransformerOptionsHook):
 
             model_options["model_function_wrapper"] = chained_wrapper
         else:
-            logger.info(
-                "[A1111 Hook] Registering model_function_wrapper on model_options"
-            )
+            if self.debug:
+                logger.info(
+                    "[A1111 Hook] Registering model_function_wrapper on model_options"
+                )
             model_options["model_function_wrapper"] = self.model_function_wrapper
 
         registered.add(self)
@@ -124,24 +134,20 @@ class A1111StepConditioningHook(TransformerOptionsHook):
             args: Arguments dict with input, timestep, c, cond_or_uncond
             existing_wrapper: Optional existing wrapper to chain
         """
-        # Log on very first call to confirm wrapper is active
-        if self._last_logged_step == -1:
-            logger.info(
-                "[A1111 Hook] ========== WRAPPER CALLED - HOOK IS ACTIVE =========="
-            )
-            if existing_wrapper is not None:
-                logger.info("[A1111 Hook] Chaining with existing wrapper")
-
         input_x = args["input"]
         timestep = args["timestep"]
         c = args["c"]
         cond_or_uncond = args["cond_or_uncond"]
 
-        # Get sigma from timestep
-        if isinstance(timestep, torch.Tensor):
-            sigma_val = timestep[0].item() if timestep.ndim > 0 else timestep.item()
-        else:
-            sigma_val = float(timestep)
+        # 1. Quick Check: Is there even a positive conditioning in this batch to swap?
+        # Standard runs have cond_or_uncond = [0, 1]. If it's just [1], skip work.
+        if 0 not in cond_or_uncond or "c_crossattn" not in c:
+            if existing_wrapper is not None:
+                return existing_wrapper(apply_model_func, args)
+            return apply_model_func(input_x, timestep, **c)
+
+        # 2. Step detection
+        sigma_val = timestep.item() if isinstance(timestep, torch.Tensor) else timestep
 
         # Get sample_sigmas from transformer_options in c
         transformer_options = c.get("transformer_options", {})
@@ -149,7 +155,8 @@ class A1111StepConditioningHook(TransformerOptionsHook):
 
         if sample_sigmas is None:
             # No sigmas available - shouldn't happen, but fallback to first step
-            logger.warning("[A1111 Hook] No sample_sigmas found, using first step")
+            if self.debug:
+                logger.warning("[A1111 Hook] No sample_sigmas found, using first step")
             if existing_wrapper is not None:
                 return existing_wrapper(apply_model_func, args)
             return apply_model_func(input_x, timestep, **c)
@@ -157,166 +164,141 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         # Calculate actual total steps from sigmas
         actual_steps = len(sample_sigmas) - 1
 
-        # Log on first call
-        if self._last_logged_step == -1:
-            logger.info(f"[A1111 Hook] Actual sampler steps: {actual_steps}")
-            logger.info(
-                f"[A1111 Hook] Embeddings prepared for: {len(self.step_embeddings)} steps"
-            )
-            logger.info(f"[A1111 Hook] Default parse steps: {self.default_steps}")
-
         # Determine current step from sigma
         step_idx = self.get_step_from_sigma(sigma_val, sample_sigmas)
 
         # Clamp step_idx to valid range
         step_idx = max(0, min(step_idx, len(self.step_embeddings) - 1))
 
-        # Get target conditioning for this step
+        # 3. Cache Check: Have we already built this specific combined tensor?
+        orig_cond = c["c_crossattn"]
+        # Use a stable key based on structural descriptors rather than Python id().
+        # This handles cloned hooks/tensors in 2nd order samplers.
+        # Key: (step_index, orig_shape, cond_mask)
+        cond_mask = (
+            tuple(cond_or_uncond)
+            if isinstance(cond_or_uncond, list)
+            else cond_or_uncond
+        )
+        cache_key = (step_idx, orig_cond.shape, cond_mask)
+
+        if cache_key in self._swap_cache:
+            cached_cond = self._swap_cache[cache_key]
+            # Fast verification of device
+            if cached_cond.device == orig_cond.device:
+                # Reuse existing c if possible, or build one if we're chaining
+                if existing_wrapper is None:
+                    new_c = c.copy()
+                    new_c["c_crossattn"] = cached_cond
+                    return apply_model_func(input_x, timestep, **new_c)
+                else:
+                    # Chaining requires a full dict for the next wrapper
+                    new_c = c.copy()
+                    new_c["c_crossattn"] = cached_cond
+                    return existing_wrapper(
+                        apply_model_func,
+                        {
+                            "input": input_x,
+                            "timestep": timestep,
+                            "c": new_c,
+                            "cond_or_uncond": cond_or_uncond,
+                        },
+                    )
+
+        # 4. Processing Path: We need to build the swapped tensor
         target_cond, _target_pooled = self.step_embeddings[step_idx]
 
-        # Log step changes (deduplicated)
-        if step_idx != self._last_logged_step:
-            logger.debug(
-                f"[A1111 Hook] Step {step_idx}/{actual_steps - 1} (sigma={sigma_val:.4f})"
+        if target_cond is None:
+            if existing_wrapper is not None:
+                return existing_wrapper(apply_model_func, args)
+            return apply_model_func(input_x, timestep, **c)
+
+        device = orig_cond.device
+        dtype = orig_cond.dtype
+
+        # Log on very first call to confirm wrapper is active
+        if self._last_logged_step == -1 and self.debug:
+            logger.info(
+                "[A1111 Hook] ========== WRAPPER CALLED - HOOK IS ACTIVE =========="
             )
-            self._last_logged_step = step_idx
-
-        # IMPORTANT: The batch contains both positive and negative conditioning.
-        # cond_or_uncond tells us which is which: 0=positive, 1=negative
-        # We only swap the POSITIVE conditioning, keep negative as-is for CFG to work.
-        #
-        # When positive and negative have very different sequence lengths (e.g., 385 vs 77),
-        # ComfyUI can't batch them together and processes them separately. Skip the swap
-        # entirely when processing negative-only batches.
-        has_positive = any(ct == 0 for ct in cond_or_uncond)
-
-        # Debug logging on first call - check conditions
-        if not self._first_swap_logged:
-            logger.debug("[A1111 Hook] === CHECKING SWAP CONDITIONS ===")
-            logger.debug(
-                f"[A1111 Hook] target_cond is not None: {target_cond is not None}"
+            if existing_wrapper is not None:
+                logger.info("[A1111 Hook] Chaining with existing wrapper")
+            logger.info(f"[A1111 Hook] Actual sampler steps: {actual_steps}")
+            logger.info(
+                f"[A1111 Hook] Embeddings prepared for: {len(self.step_embeddings)} steps"
             )
-            logger.debug(f"[A1111 Hook] 'c_crossattn' in c: {'c_crossattn' in c}")
-            logger.debug(f"[A1111 Hook] has_positive: {has_positive}")
-            logger.debug(f"[A1111 Hook] cond_or_uncond: {cond_or_uncond}")
-            logger.debug(f"[A1111 Hook] Keys in c: {list(c.keys())}")
 
-        if target_cond is not None and "c_crossattn" in c and has_positive:
-            orig_cond = c["c_crossattn"]
-            device = orig_cond.device
-            dtype = orig_cond.dtype
+        # Fast path identity check: Skip only if the target is already the input object
+        if target_cond is orig_cond:
+            if existing_wrapper is not None:
+                return existing_wrapper(apply_model_func, args)
+            return apply_model_func(input_x, timestep, **c)
 
-            # Log details on first swap
-            if not self._first_swap_logged:
-                logger.debug("[A1111 Hook] === FIRST CONDITIONING SWAP ===")
-                logger.debug(
-                    f"[A1111 Hook] Original c_crossattn shape: {orig_cond.shape}"
-                )
-                logger.debug(f"[A1111 Hook] Target cond shape: {target_cond.shape}")
-                logger.debug(f"[A1111 Hook] cond_or_uncond: {cond_or_uncond}")
-                logger.debug(f"[A1111 Hook] Batch size: {len(cond_or_uncond)}")
+        # Build modified conditioning
+        # Use target_cond.to() without clone() - to() is usually a no-op if already same
+        new_cond = target_cond.to(device=device, dtype=dtype)
 
-            # Prepare swapped conditioning
-            new_cond = target_cond.to(device=device, dtype=dtype).clone()
+        target_seq_len = new_cond.shape[1]
+        orig_seq_len = orig_cond.shape[1]
 
-            # Handle sequence length mismatch using LCM-based repeat padding
-            target_seq_len = new_cond.shape[1]
-            orig_seq_len = orig_cond.shape[1]
+        if target_seq_len == orig_seq_len:
+            # FAST PATH: Identical sequence lengths - just slice and replace
+            modified_cond = orig_cond.clone()
+            for b_idx, ct in enumerate(cond_or_uncond):
+                if ct == 0:  # positive
+                    modified_cond[b_idx : b_idx + 1] = new_cond[0:1]
+        else:
+            # COMPATIBILITY PATH: Sequence length mismatch (e.g. SDXL vs SD1.5 or custom resolutions)
+            lcm_len = math.lcm(target_seq_len, orig_seq_len)
 
-            if target_seq_len != orig_seq_len:
-                # Use LCM like ldm_patched does for proper batching
-                lcm_len = math.lcm(target_seq_len, orig_seq_len)
-
-                if not self._first_swap_logged:
-                    logger.debug(
-                        f"[A1111 Hook] Sequence length mismatch: target={target_seq_len}, orig={orig_seq_len}, LCM={lcm_len}"
-                    )
-
-                # Expand orig_cond by repeating to LCM length
-                if orig_seq_len < lcm_len:
-                    repeat_factor = lcm_len // orig_seq_len
-                    expanded_orig = orig_cond.repeat(1, repeat_factor, 1)
-                else:
-                    expanded_orig = orig_cond
-
-                # Expand new_cond by repeating to LCM length
-                if target_seq_len < lcm_len:
-                    repeat_factor = lcm_len // target_seq_len
-                    expanded_new = new_cond.repeat(1, repeat_factor, 1)
-                else:
-                    expanded_new = new_cond
-
-                # Create output tensor starting with expanded original
-                modified_cond = expanded_orig.clone()
-
-                # Swap only positive conditioning positions with our step embedding
-                swapped_count = 0
-                for batch_idx, cond_type in enumerate(cond_or_uncond):
-                    if cond_type == 0:  # Positive conditioning
-                        modified_cond[batch_idx] = expanded_new[0]
-                        swapped_count += 1
-
-                if not self._first_swap_logged:
-                    logger.debug(
-                        f"[A1111 Hook] Swapped {swapped_count} positive conditioning(s)"
-                    )
+            # Expand orig_cond by repeating to LCM length
+            if orig_seq_len < lcm_len:
+                repeat_factor = lcm_len // orig_seq_len
+                expanded_orig = orig_cond.repeat(1, repeat_factor, 1)
             else:
-                # Lengths match - simple case
-                modified_cond = orig_cond.clone()
-                swapped_count = 0
-                for batch_idx, cond_type in enumerate(cond_or_uncond):
-                    if cond_type == 0:
-                        modified_cond[batch_idx] = new_cond[0]
-                        swapped_count += 1
+                expanded_orig = orig_cond
 
-                if not self._first_swap_logged:
-                    logger.debug(
-                        f"[A1111 Hook] Swapped {swapped_count} positive conditioning(s) (no length mismatch)"
-                    )
+            # Expand new_cond by repeating to LCM length
+            if target_seq_len < lcm_len:
+                repeat_factor = lcm_len // target_seq_len
+                expanded_new = new_cond.repeat(1, repeat_factor, 1)
+            else:
+                expanded_new = new_cond
 
-            # Create modified c dict with swapped conditioning
-            c = dict(c)
-            c["c_crossattn"] = modified_cond
+            modified_chunks = []
+            for i, ct in enumerate(cond_or_uncond):
+                if ct == 0:  # Positive: use swapped conditioning
+                    modified_chunks.append(expanded_new[0:1])
+                else:  # Negative/Uncond: use original conditioning
+                    modified_chunks.append(expanded_orig[i : i + 1])
 
-            if not self._first_swap_logged:
-                logger.debug(
-                    f"[A1111 Hook] Final modified_cond shape: {modified_cond.shape}"
-                )
-                logger.debug("[A1111 Hook] === SWAP COMPLETE ===")
-                self._first_swap_logged = True  # Mark first swap as complete
+            modified_cond = torch.cat(modified_chunks, dim=0)
 
-            # Explicit tensor cleanup to prevent accumulation
-            if target_seq_len != orig_seq_len:
-                if "expanded_orig" in locals():
-                    del expanded_orig
-                if "expanded_new" in locals():
-                    del expanded_new
-                if "new_cond" in locals():
-                    del new_cond
+        # Cache the result
+        if len(self._swap_cache) > 100:
+            self._swap_cache.clear()
+        self._swap_cache[cache_key] = modified_cond
 
-            # Optional: Periodic cache clearing to prevent GPU fragmentation
-            # Commented out: Normally ComfyUI manages this fine.
-            # Re-enable only if experiencing OOM on long scheduled runs.
-            # if self._last_logged_step % 20 == 0 and torch.cuda.is_available():
-            #     torch.cuda.empty_cache()
+        # Finalize
+        c = dict(c)
+        c["c_crossattn"] = modified_cond
 
-        elif not self._first_swap_logged:
-            logger.warning("[A1111 Hook] Conditioning swap skipped!")
-            if target_cond is None:
-                logger.warning("[A1111 Hook]   - target_cond is None")
-            if "c_crossattn" not in c:
-                logger.warning("[A1111 Hook]   - c_crossattn not in c")
-            if not has_positive:
-                logger.warning("[A1111 Hook]   - no positive conditioning in batch")
+        if self.debug and not self._first_swap_logged:
+            logger.info(f"[A1111 Hook] Swapped cond for step {step_idx}")
+            self._first_swap_logged = True
 
-        # CRITICAL: Update args with modified c before calling model
-        # This ensures our conditioning changes are actually used
-        args = dict(args)
-        args["c"] = c
+        self._last_logged_step = step_idx
 
-        # Call the actual model (or existing wrapper if chained)
         if existing_wrapper is not None:
-            return existing_wrapper(apply_model_func, args)
+            return existing_wrapper(
+                apply_model_func,
+                {
+                    "input": input_x,
+                    "timestep": timestep,
+                    "c": c,
+                    "cond_or_uncond": cond_or_uncond,
+                },
+            )
         return apply_model_func(input_x, timestep, **c)
 
     def clone(self):
@@ -324,11 +306,16 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         c = super().clone()
         c.step_embeddings = self.step_embeddings
         c.default_steps = self.default_steps
+        c.debug = self.debug
         c._last_logged_step = self._last_logged_step
+        # Share the cache dictionary to ensure 2nd order samplers enjoy performance gains
+        c._swap_cache = self._swap_cache
         return c
 
 
-def create_step_schedule_cond(step_embeddings, default_steps, base_cond, base_pooled):
+def create_step_schedule_cond(
+    step_embeddings, default_steps=28, base_cond=None, base_pooled=None, debug=False
+):
     """
     Create conditioning with step schedule hook attached.
 
@@ -341,12 +328,13 @@ def create_step_schedule_cond(step_embeddings, default_steps, base_cond, base_po
         default_steps: Default step count used for parsing (for scaling)
         base_cond: Base conditioning tensor
         base_pooled: Base pooled output
+        debug: Whether to log verbose scheduling information
 
     Returns:
         Conditioning list with hook attached
     """
     # Create the hook
-    hook = A1111StepConditioningHook(step_embeddings, default_steps)
+    hook = A1111StepConditioningHook(step_embeddings, default_steps, debug=debug)
     hook_group = HookGroup()
     hook_group.add(hook)
 

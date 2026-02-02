@@ -22,7 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Zero-Allocation Hot-Path**: Reduced Python overhead to the absolute minimum for standard and scheduled runs.
 - **Log Management**: Silenced all verbose console logs (encoding progress, graph traversal, and hook execution) behind the `debug` flag.
 - **Stability & Determinism**: Fixed a regression in the identity check logic that caused intermittent "skipped swaps" and ensured perfect image consistency across all sampler types.
-- **Documentation**: Fixed MD040 linter errors across all READMEs and created `EXPERIMENTAL.md` for hook research.
+- **Code Quality & PR Feedback**:
+  - **Exception Handling**: Moved verbose step-detection errors to a dedicated `StepCountRequiredError` class.
+  - **Memory Optimization**: Limited tensor padding to only the prompts used in the current generation, preventing global cache bloat.
+  - **Schedule Precision**: Implemented linear index scaling in `hooks.py` to ensure percentage-based schedules remain accurate even when sampler step counts vary from defaults.
+  - **Cache Key Robustness**: Updated encoding cache to use composite keys (CLIP identity + normalization), ensuring embeddings are never reused in incompatible contexts.
+  - **Improved Cache Management**: Refactored cache clearing to happen before execution loops, preventing data loss during multi-prompt runs.
+  - **UI Robustness**: Improved autocomplete error handling to correctly reset internal selection state upon backend failure.
 
 ## [Unreleased] - 2026-01-31
 

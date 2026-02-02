@@ -577,6 +577,10 @@ export async function fetchTagSuggestions(query, limit = 20) {
   } catch (error) {
     console.warn("Autocomplete fetch error:", error);
     
+    // Reset selection state to prevent inserting stale data on keyboard events
+    currentResults = [];
+    selectedIndex = -1;
+    
     // Show error in popup
     const popup = createAutocompletePopup();
     popup.innerHTML = `

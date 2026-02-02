@@ -164,11 +164,21 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         # Calculate actual total steps from sigmas
         actual_steps = len(sample_sigmas) - 1
 
-        # Determine current step from sigma
-        step_idx = self.get_step_from_sigma(sigma_val, sample_sigmas)
+        # Determine current step from sigma (this returns the index in the CURRENT sampler's sigmas)
+        raw_step_idx = self.get_step_from_sigma(sigma_val, sample_sigmas)
+
+        # Scale the actual sampler step index into the range of our prepared embeddings.
+        # This ensures that schedules (like transitions at 50% path) are accurate even if
+        # the sampler is running with more/fewer steps than our default (usually 28).
+        emb_steps = len(self.step_embeddings) - 1
+        if actual_steps > 0:
+            # Linear scaling: (current_sampler_step / total_sampler_steps) * total_embedding_steps
+            step_idx = round(raw_step_idx * emb_steps / actual_steps)
+        else:
+            step_idx = 0
 
         # Clamp step_idx to valid range
-        step_idx = max(0, min(step_idx, len(self.step_embeddings) - 1))
+        step_idx = max(0, min(step_idx, emb_steps))
 
         # 3. Cache Check: Have we already built this specific combined tensor?
         orig_cond = c["c_crossattn"]

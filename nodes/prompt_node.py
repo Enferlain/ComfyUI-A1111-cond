@@ -20,10 +20,25 @@ from ..hooks import create_step_schedule_cond
 logger = logging.getLogger("A1111PromptNode")
 
 
+class StepCountRequiredError(ValueError):
+    def __init__(self):
+        super().__init__(
+            "Step-based syntax detected (e.g., [thing:10]) but could not determine step count.\n"
+            "Either:\n"
+            "1. Connect this node to a sampler/scheduler (steps will be auto-detected), OR\n"
+            "2. Use percentage-based syntax instead (e.g., [thing:0.33] for 33%)"
+        )
+
+
 class A1111PromptNode:
     def __init__(self):
         self._encoded_cache = {}
         self._max_cache_size = 50  # Limit unique prompts cached across executions
+
+    def _get_cache_key(self, clip, prompt_text, normalization):
+        """Create a robust cache key including CLIP model and settings."""
+        # Using id(clip) as a proxy for the specific model instance/state
+        return (id(clip), normalization, prompt_text)
 
     @classmethod
     def INPUT_TYPES(s):
@@ -98,12 +113,7 @@ class A1111PromptNode:
             )
 
         if uses_step_syntax and steps is None:
-            raise ValueError(
-                "Step-based syntax detected (e.g., [thing:10]) but could not determine step count.\n"
-                "Either:\n"
-                "1. Connect this node to a sampler/scheduler (steps will be auto-detected), OR\n"
-                "2. Use percentage-based syntax instead (e.g., [thing:0.33] for 33%)"
-            )
+            raise StepCountRequiredError()
 
         # If steps is None and no step-based syntax, use a reasonable default for parsing
         # (will only affect alternation patterns, percentages work regardless)
@@ -230,9 +240,23 @@ class A1111PromptNode:
                     "[A1111 Prompt] No scheduling detected - using static prompt"
                 )
             prompt_text = schedule[0][1] if schedule else ""
-            cond, pooled = self._encode_with_break_isolation(
-                clip, prompt_text, normalization, is_sdxl, debug
-            )
+
+            # Check cache for static prompt too
+            cache_key = self._get_cache_key(clip, prompt_text, normalization)
+            if cache_key in self._encoded_cache:
+                cond, pooled = self._encoded_cache[cache_key]
+                if debug:
+                    logger.info("[A1111 Prompt] Found static prompt in cache")
+            else:
+                # Capacity check before encoding
+                if len(self._encoded_cache) >= self._max_cache_size:
+                    self._encoded_cache.clear()
+
+                cond, pooled = self._encode_with_break_isolation(
+                    clip, prompt_text, normalization, is_sdxl, debug
+                )
+                self._encoded_cache[cache_key] = (cond, pooled)
+
             if debug:
                 logger.info(
                     "[A1111 Prompt] ========== ENCODE COMPLETE (static) =========="
@@ -249,52 +273,59 @@ class A1111PromptNode:
             )
         unique_prompts = list(set(full_step_prompts))
 
-        # Clear cache if it gets too large
-        if len(self._encoded_cache) > self._max_cache_size:
-            if debug:
-                logger.info("[A1111 Prompt] Cache full, clearing...")
-            self._encoded_cache.clear()
+        # Pre-calculate keys and identify missing ones
+        missing_keys = []
+        unique_keys = []
+        for p in unique_prompts:
+            key = self._get_cache_key(clip, p, normalization)
+            unique_keys.append(key)
+            if key not in self._encoded_cache:
+                missing_keys.append((key, p))
 
-        encoded_cache = self._encoded_cache
-        if debug:
-            logger.info(
-                f"[A1111 Prompt] Found {len(unique_prompts)} unique prompts to encode"
-            )
-
-        for i, prompt_text in enumerate(unique_prompts):
-            if prompt_text in encoded_cache:
-                continue
-
-            # Defensive: Clear cache if it grows too large during a single execution
-            if len(self._encoded_cache) >= self._max_cache_size:
-                if debug:
-                    logger.info(
-                        "[A1111 Prompt] Cache full during execution, clearing..."
-                    )
-                self._encoded_cache.clear()
-                # Re-reference after clear (though it's the same object, it's safer)
-                encoded_cache = self._encoded_cache
-
+        # Ensure capacity for all new prompts before we start encoding
+        # This prevents mid-execution clearing that would lose prompts for the current run
+        if len(self._encoded_cache) + len(missing_keys) > self._max_cache_size:
             if debug:
                 logger.info(
-                    f"[A1111 Prompt] Encoding prompt {i + 1}/{len(unique_prompts)}: {prompt_text[:50]}..."
+                    f"[A1111 Prompt] Cache capacity exceeded ({len(self._encoded_cache)} + {len(missing_keys)} > {self._max_cache_size}), clearing oldest entries..."
+                )
+            # Simple policy: if we exceed, clear enough or just clear all if it's very high churn
+            if len(missing_keys) >= self._max_cache_size:
+                self._encoded_cache.clear()
+            else:
+                # Evict oldest until we have room
+                # (Dicts are ordered in Python 3.7+, so we can pop the first items)
+                while (
+                    len(self._encoded_cache) + len(missing_keys) > self._max_cache_size
+                ):
+                    self._encoded_cache.pop(next(iter(self._encoded_cache)))
+
+        # Encode missing prompts
+        for i, (key, prompt_text) in enumerate(missing_keys):
+            if debug:
+                logger.info(
+                    f"[A1111 Prompt] Encoding missing prompt {i + 1}/{len(missing_keys)}: {prompt_text[:50]}..."
                 )
             cond, pooled = self._encode_with_break_isolation(
                 clip, prompt_text, normalization, is_sdxl, debug
             )
-            encoded_cache[prompt_text] = (cond, pooled)
-            if debug:
-                logger.info(f"[A1111 Prompt]   → Shape: {cond.shape}")
+            self._encoded_cache[key] = (cond, pooled)
 
-        # Find maximum sequence length across all embeddings
-        max_seq_len = max(cond.shape[1] for cond, _ in encoded_cache.values())
+        # Temporary local mapping for the current run (to help with padding)
+        # keys here are original prompt_texts, values are (cond, pooled)
+        run_embeddings = {}
+        for p, key in zip(unique_prompts, unique_keys):
+            run_embeddings[p] = self._encoded_cache[key]
+
+        # Find maximum sequence length only among prompts used in this specific run
+        max_seq_len = max(run_embeddings[p][0].shape[1] for p in unique_prompts)
         if debug:
-            logger.info(f"[A1111 Prompt] Max sequence length: {max_seq_len}")
+            logger.info(f"[A1111 Prompt] Max sequence length (this run): {max_seq_len}")
 
-        # Pad all embeddings to the same length
+        # Pad only the embeddings used in this run to the same length
         padded_count = 0
-        for prompt_text in encoded_cache:
-            cond, pooled = encoded_cache[prompt_text]
+        for prompt_text in unique_prompts:
+            cond, pooled = run_embeddings[prompt_text]
             if cond.shape[1] < max_seq_len:
                 pad_size = max_seq_len - cond.shape[1]
                 padding = torch.zeros(
@@ -305,17 +336,24 @@ class A1111PromptNode:
                     dtype=cond.dtype,
                 )
                 cond = torch.cat([cond, padding], dim=1)
-                encoded_cache[prompt_text] = (cond, pooled)
+                # Update run mapping with padded version
+                run_embeddings[prompt_text] = (cond, pooled)
+
+                # ALSO update global cache so we don't re-pad in same run if it's used again
+                # (though unique_prompts already handled that, it's good for static path too)
+                key = self._get_cache_key(clip, prompt_text, normalization)
+                self._encoded_cache[key] = (cond, pooled)
+
                 padded_count += 1
                 if debug:
                     logger.info(
-                        f"[A1111 Prompt] Padded embedding from {cond.shape[1] - pad_size} to {max_seq_len}"
+                        f"[A1111 Prompt] Padded current run embedding from {cond.shape[1] - pad_size} to {max_seq_len}"
                     )
 
         if padded_count > 0:
             if debug:
                 logger.info(
-                    f"[A1111 Prompt] Padded {padded_count} embeddings to match max length"
+                    f"[A1111 Prompt] Padded {padded_count} embeddings used in this run to match max length"
                 )
 
         # Build per-step embedding list
@@ -325,7 +363,7 @@ class A1111PromptNode:
         device = model_management.intermediate_device()
         step_embeddings = []
         for prompt in full_step_prompts:
-            cond, pooled = encoded_cache[prompt]
+            cond, pooled = run_embeddings[prompt]
             # Ensure they are on the right device before sampling starts
             cond = cond.to(device)
             if pooled is not None:

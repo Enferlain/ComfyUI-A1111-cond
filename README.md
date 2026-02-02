@@ -152,6 +152,24 @@ This alternates until 60%, then switches to just "as109".
 - **SDXL**: Dual CLIP (clip_l + clip_g) with independent weight scaling
 - **SD1.5**: Full support
 
+### What is Normalization?
+
+This node **always** uses A1111-style "Direct Scaling" (multiplication) instead of ComfyUI's standard interpolation. This is what provides the core "A1111 look" and prevents the default ComfyUI color burn.
+
+The `normalization` toggle specifically controls A1111's **Mean Rescaling** (Norm vs No Norm):
+
+**When `normalization` is enabled (True):**
+
+- **Match A1111 "Norm"**: Rescales the final conditioning so its mathematical "energy" (mean) matches the original.
+- **Effect**: Prevents saturation shifts at very high weights.
+- **Commonly used with**: **SD1.5** and models sensitive to high prompt energy.
+
+**When `normalization` is disabled (False - Default):**
+
+- **Match A1111 "No Norm"**: Applies weights exactly as written without any rescaling.
+- **Effect**: Emphasized words "punch" through more aggressively.
+- **Commonly used with**: **SDXL** and modern models that handle high energy well.
+
 ---
 
 ## Usage
@@ -167,12 +185,12 @@ This pack provides **two nodes**:
 
 #### Inputs
 
-| Input         | Type   | Required | Description                        |
-| ------------- | ------ | -------- | ---------------------------------- |
-| clip          | CLIP   | Yes      | The CLIP model                     |
-| text          | STRING | Yes      | Prompt with A1111 syntax           |
-| normalization | BOOL   | No       | Enable EmphasisOriginalNoNorm      |
-| debug         | BOOL   | No       | Show detailed schedule information |
+| Input         | Type   | Required | Description                                      |
+| ------------- | ------ | -------- | ------------------------------------------------ |
+| clip          | CLIP   | Yes      | The CLIP model                                   |
+| text          | STRING | Yes      | Prompt with A1111 syntax                         |
+| normalization | BOOL   | No       | EmphasisOriginal/EmphasisOriginalNoNorm toggle   |
+| debug         | BOOL   | No       | Show detailed schedule information               |
 
 #### Outputs
 

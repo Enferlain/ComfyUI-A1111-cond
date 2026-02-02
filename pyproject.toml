@@ -13,7 +13,7 @@ Repository = "https://github.com/Enferlain/ComfyUI-A1111-cond"
 "Bug Tracker" = "https://github.com/Enferlain/ComfyUI-A1111-cond/issues"
 
 [tool.comfy]
-PublisherId = "Enferlain"
+PublisherId = "enferlain"
 DisplayName = "A1111 Prompt Node"
 Icon = ""
 includes = [

@@ -135,9 +135,9 @@ Control when alternation starts or stops:
 
 | Syntax               | Meaning                                   |
 | -------------------- | ----------------------------------------- |
-| `[as109\|fkey::0.6]` | Alternate until 60%, then nothing         |
-| `[as109\|fkey:0.4]`  | Nothing until 40%, then start alternating |
-| `[as109\|fkey::15]`  | Alternate until step 15, then nothing     |
+| `[as109\|fkey::0.6]` | Alternate until 60%, then as109           |
+| `[as109\|fkey:0.4]`  | as109 until 40%, then start alternating   |
+| `[as109\|fkey::15]`  | Alternate until step 15, then as109       |
 
 **Combining with scheduling to lock to a value:**
 

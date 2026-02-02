@@ -1,4 +1,15 @@
 __pycache__
-comfy_cond_guide.md
-context_files_from_a1111
 *.code-workspace
+
+# reference files
+comfy_cond_guide.md
+context_files_from_a1111/
+A1111-sd-webui-tagcomplete/
+
+# dev files
+*_old.py
+A1111_PARITY_FINDINGS.md
+MIGRATION_GUIDE.md
+MODEL_WRAPPER_ANALYSIS.md
+REFACTOR_SUMMARY.md
+*.zip

@@ -10,6 +10,7 @@ from .autocomplete import get_database, ensure_database_loaded, TagDatabase
 # Conditionally import tokenize functionality (requires server)
 try:
     from .tokenize import tokenize_prompt, get_tokenizer
+
     _HAS_TOKENIZE = True
 except ImportError:
     _HAS_TOKENIZE = False
@@ -18,7 +19,7 @@ except ImportError:
 
 __all__ = [
     "get_database",
-    "ensure_database_loaded", 
+    "ensure_database_loaded",
     "TagDatabase",
 ]
 

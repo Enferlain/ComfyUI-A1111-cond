@@ -12,6 +12,7 @@ Implements A1111-style prompt handling:
 import torch
 import logging
 import re
+from collections import deque
 import comfy.model_management as model_management
 from ..parser import get_prompt_schedule
 from ..hooks import create_step_schedule_cond
@@ -19,7 +20,26 @@ from ..hooks import create_step_schedule_cond
 logger = logging.getLogger("A1111PromptNode")
 
 
+class StepCountRequiredError(ValueError):
+    def __init__(self):
+        super().__init__(
+            "Step-based syntax detected (e.g., [thing:10]) but could not determine step count.\n"
+            "Either:\n"
+            "1. Connect this node to a sampler/scheduler (steps will be auto-detected), OR\n"
+            "2. Use percentage-based syntax instead (e.g., [thing:0.33] for 33%)"
+        )
+
+
 class A1111PromptNode:
+    def __init__(self):
+        self._encoded_cache = {}
+        self._max_cache_size = 50  # Limit unique prompts cached across executions
+
+    def _get_cache_key(self, clip, prompt_text, normalization):
+        """Create a robust cache key including CLIP model and settings."""
+        # Using id(clip) as a proxy for the specific model instance/state
+        return (id(clip), normalization, prompt_text)
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -28,16 +48,6 @@ class A1111PromptNode:
                 "text": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             },
             "optional": {
-                "model": ("MODEL",),
-                "steps": (
-                    "INT",
-                    {
-                        "default": 20,
-                        "min": 1,
-                        "max": 1000,
-                        "tooltip": "Total sampling steps (for step-based scheduling like [thing:10])",
-                    },
-                ),
                 "normalization": (
                     "BOOLEAN",
                     {"default": False, "label_on": "Enable", "label_off": "Disable"},
@@ -47,16 +57,20 @@ class A1111PromptNode:
                     {"default": False, "label_on": "Enable", "label_off": "Disable"},
                 ),
             },
+            "hidden": {
+                "prompt": "PROMPT",
+                "unique_id": "UNIQUE_ID",
+            },
         }
 
-    RETURN_TYPES = ("CONDITIONING", "MODEL")
-    RETURN_NAMES = ("conditioning", "model")
+    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("conditioning",)
     FUNCTION = "encode"
     CATEGORY = "conditioning/advanced"
     OUTPUT_NODE = True
 
     def encode(
-        self, clip, text, model=None, steps=20, normalization=False, debug=False
+        self, clip, text, normalization=False, debug=False, prompt=None, unique_id=None
     ):
         """
         Main encode function - A1111 style with step-based scheduling.
@@ -65,7 +79,50 @@ class A1111PromptNode:
         - BREAK segments are tokenized SEPARATELY for isolation
         - Each BREAK segment becomes its own 77-token batch
         - Scheduling/alternation evaluated per-step like A1111
+        - Steps auto-detected from downstream sampler/scheduler
         """
+        if debug:
+            logger.info("[A1111 Prompt] ========== ENCODE START ==========")
+            logger.info(f"[A1111 Prompt] Node ID: {unique_id}")
+
+        # Auto-detect steps from workflow graph
+        steps = None
+        if prompt is not None and unique_id is not None:
+            if debug:
+                logger.info(
+                    "[A1111 Prompt] Attempting to auto-detect steps from workflow..."
+                )
+            steps = self._get_downstream_steps(prompt, unique_id, debug)
+            if steps is not None:
+                if debug:
+                    logger.info(f"[A1111 Prompt] ✓ Auto-detected steps: {steps}")
+            else:
+                logger.warning(
+                    "[A1111 Prompt] ✗ Could not auto-detect steps from workflow"
+                )
+        else:
+            logger.warning(
+                f"[A1111 Prompt] No workflow graph available (prompt={prompt is not None}, unique_id={unique_id is not None})"
+            )
+
+        # Check if prompt uses step-based syntax (integers without decimals)
+        uses_step_syntax = self._uses_step_based_syntax(text, debug)
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Syntax detection: {'step-based' if uses_step_syntax else 'percentage-based'}"
+            )
+
+        if uses_step_syntax and steps is None:
+            raise StepCountRequiredError()
+
+        # If steps is None and no step-based syntax, use a reasonable default for parsing
+        # (will only affect alternation patterns, percentages work regardless)
+        parse_steps = steps if steps is not None else 30
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Parse steps: {parse_steps} ({'auto-detected' if steps is not None else 'default for percentage-only'})"
+            )
+
         if clip is None:
             raise RuntimeError("ERROR: clip input is None")
 
@@ -74,19 +131,21 @@ class A1111PromptNode:
         )
 
         if debug:
-            logger.info(f"[A1111 Prompt] ========== DEBUG START ==========")
             logger.info(
                 f"[A1111 Prompt] Input text: {text[:100]}..."
                 if len(text) > 100
                 else f"[A1111 Prompt] Input text: {text}"
             )
             logger.info(f"[A1111 Prompt] Model: {'SDXL' if is_sdxl else 'SD1.5'}")
-            logger.info(f"[A1111 Prompt] Steps: {steps}")
             logger.info(
                 f"[A1111 Prompt] Normalization: {'ON' if normalization else 'OFF'}"
             )
 
-        schedule = get_prompt_schedule(text, steps)
+        if debug:
+            logger.info(f"[A1111 Prompt] Parsing schedule with {parse_steps} steps...")
+        schedule = get_prompt_schedule(text, parse_steps)
+        if debug:
+            logger.info(f"[A1111 Prompt] Schedule generated: {len(schedule)} segments")
 
         # Check if we need alternation hook (if any step has alternation)
         # The parser returns a flat list of (end_step, prompt)
@@ -107,18 +166,18 @@ class A1111PromptNode:
         # Let's support both.
 
         # Strategy:
-        # 1. Flatten schedule to per-step list of prompts (size = steps)
+        # 1. Flatten schedule to per-step list of prompts (size = parse_steps)
         # 2. Encode all unique prompts
         # 3. Create a list of (cond, pooled) for each step
         # 4. Attach hook with this list
 
         # First, expand schedule to full per-step list
-        full_step_prompts = [""] * steps
+        full_step_prompts = [""] * parse_steps
         prev_end = 0
         for end_step, prompt in schedule:
             # fill from prev_end to end_step
             # clamp just in case
-            safe_end = min(end_step, steps)
+            safe_end = min(end_step, parse_steps)
             for i in range(prev_end, safe_end):
                 full_step_prompts[i] = prompt
             prev_end = safe_end
@@ -149,58 +208,124 @@ class A1111PromptNode:
                 f"[A1111 Prompt] Unique prompts: {len(unique_prompts)} (will encode each once)"
             )
             logger.info(
-                f"[A1111 Prompt] Step transitions: {transitions} across {steps} steps"
+                f"[A1111 Prompt] Step transitions: {transitions} across {parse_steps} steps"
             )
 
             # Show alternation pattern if applicable
-            if transitions > steps // 3:  # Likely alternation
+            if transitions > parse_steps // 3:  # Likely alternation
                 # Sample a few steps to show pattern
-                sample_steps = [0, 1, 2, steps // 2, steps - 1]
+                sample_steps = [0, 1, 2, parse_steps // 2, parse_steps - 1]
                 pattern = []
                 for s in sample_steps:
                     if s < len(full_step_prompts):
                         # Extract just the varying part (first 50 chars)
                         p = full_step_prompts[s][:50]
                         pattern.append(f"Step {s}: {p}...")
-                logger.info("[A1111 Prompt] Alternation pattern sample:")
-                for p in pattern:
-                    logger.info(f"  {p}")
+                if debug:
+                    logger.info("[A1111 Prompt] Alternation pattern sample:")
+                    for p in pattern:
+                        logger.info(f"  {p}")
             else:
-                # Show range-based transitions
-                logger.info("[A1111 Prompt] Schedule segments:")
-                for seg in schedule[:5]:  # First 5 segments
-                    end_step, prompt = seg
-                    logger.info(f"  Until step {end_step}: {prompt[:60]}...")
+                if debug:
+                    # Show range-based transitions
+                    logger.info("[A1111 Prompt] Schedule segments:")
+                    for seg in schedule[:5]:  # First 5 segments
+                        end_step, prompt = seg
+                        logger.info(f"  Until step {end_step}: {prompt[:60]}...")
 
         if not has_schedule:
             # Just one constant prompt - no step switching needed
+            if debug:
+                logger.info(
+                    "[A1111 Prompt] No scheduling detected - using static prompt"
+                )
             prompt_text = schedule[0][1] if schedule else ""
-            cond, pooled = self._encode_with_break_isolation(
-                clip, prompt_text, normalization, is_sdxl, debug
-            )
+
+            # Check cache for static prompt too
+            cache_key = self._get_cache_key(clip, prompt_text, normalization)
+            if cache_key in self._encoded_cache:
+                cond, pooled = self._encoded_cache[cache_key]
+                if debug:
+                    logger.info("[A1111 Prompt] Found static prompt in cache")
+            else:
+                # Capacity check before encoding
+                if len(self._encoded_cache) >= self._max_cache_size:
+                    self._encoded_cache.clear()
+
+                cond, pooled = self._encode_with_break_isolation(
+                    clip, prompt_text, normalization, is_sdxl, debug
+                )
+                self._encoded_cache[cache_key] = (cond, pooled)
+
+            if debug:
+                logger.info(
+                    "[A1111 Prompt] ========== ENCODE COMPLETE (static) =========="
+                )
             return {
                 "ui": {"text": [text]},
-                "result": ([[cond, {"pooled_output": pooled}]], model),
+                "result": ([[cond, {"pooled_output": pooled}]],),
             }
 
-        # Use step-based conditioning for strict A1111 parity
-        encoded_cache = {}
+        # Use instance-level cache with size limit
+        if debug:
+            logger.info(
+                "[A1111 Prompt] Scheduling detected - encoding unique prompts..."
+            )
         unique_prompts = list(set(full_step_prompts))
 
-        for prompt_text in unique_prompts:
-            if prompt_text in encoded_cache:
-                continue
+        # Pre-calculate keys and identify missing ones
+        missing_keys = []
+        unique_keys = []
+        for p in unique_prompts:
+            key = self._get_cache_key(clip, p, normalization)
+            unique_keys.append(key)
+            if key not in self._encoded_cache:
+                missing_keys.append((key, p))
+
+        # Ensure capacity for all new prompts before we start encoding
+        # This prevents mid-execution clearing that would lose prompts for the current run
+        if len(self._encoded_cache) + len(missing_keys) > self._max_cache_size:
+            if debug:
+                logger.info(
+                    f"[A1111 Prompt] Cache capacity exceeded ({len(self._encoded_cache)} + {len(missing_keys)} > {self._max_cache_size}), clearing oldest entries..."
+                )
+            # Simple policy: if we exceed, clear enough or just clear all if it's very high churn
+            if len(missing_keys) >= self._max_cache_size:
+                self._encoded_cache.clear()
+            else:
+                # Evict oldest until we have room
+                # (Dicts are ordered in Python 3.7+, so we can pop the first items)
+                while (
+                    len(self._encoded_cache) + len(missing_keys) > self._max_cache_size
+                ):
+                    self._encoded_cache.pop(next(iter(self._encoded_cache)))
+
+        # Encode missing prompts
+        for i, (key, prompt_text) in enumerate(missing_keys):
+            if debug:
+                logger.info(
+                    f"[A1111 Prompt] Encoding missing prompt {i + 1}/{len(missing_keys)}: {prompt_text[:50]}..."
+                )
             cond, pooled = self._encode_with_break_isolation(
                 clip, prompt_text, normalization, is_sdxl, debug
             )
-            encoded_cache[prompt_text] = (cond, pooled)
+            self._encoded_cache[key] = (cond, pooled)
 
-        # Find maximum sequence length across all embeddings
-        max_seq_len = max(cond.shape[1] for cond, _ in encoded_cache.values())
+        # Temporary local mapping for the current run (to help with padding)
+        # keys here are original prompt_texts, values are (cond, pooled)
+        run_embeddings = {}
+        for p, key in zip(unique_prompts, unique_keys):
+            run_embeddings[p] = self._encoded_cache[key]
 
-        # Pad all embeddings to the same length
-        for prompt_text in encoded_cache:
-            cond, pooled = encoded_cache[prompt_text]
+        # Find maximum sequence length only among prompts used in this specific run
+        max_seq_len = max(run_embeddings[p][0].shape[1] for p in unique_prompts)
+        if debug:
+            logger.info(f"[A1111 Prompt] Max sequence length (this run): {max_seq_len}")
+
+        # Pad only the embeddings used in this run to the same length
+        padded_count = 0
+        for prompt_text in unique_prompts:
+            cond, pooled = run_embeddings[prompt_text]
             if cond.shape[1] < max_seq_len:
                 pad_size = max_seq_len - cond.shape[1]
                 padding = torch.zeros(
@@ -211,37 +336,247 @@ class A1111PromptNode:
                     dtype=cond.dtype,
                 )
                 cond = torch.cat([cond, padding], dim=1)
-                encoded_cache[prompt_text] = (cond, pooled)
+                # Update run mapping with padded version
+                run_embeddings[prompt_text] = (cond, pooled)
+
+                # ALSO update global cache so we don't re-pad in same run if it's used again
+                # (though unique_prompts already handled that, it's good for static path too)
+                key = self._get_cache_key(clip, prompt_text, normalization)
+                self._encoded_cache[key] = (cond, pooled)
+
+                padded_count += 1
                 if debug:
                     logger.info(
-                        f"[A1111 Prompt] Padded embedding from {cond.shape[1] - pad_size} to {max_seq_len}"
+                        f"[A1111 Prompt] Padded current run embedding from {cond.shape[1] - pad_size} to {max_seq_len}"
                     )
 
+        if padded_count > 0:
+            if debug:
+                logger.info(
+                    f"[A1111 Prompt] Padded {padded_count} embeddings used in this run to match max length"
+                )
+
         # Build per-step embedding list
+        if debug:
+            logger.info("[A1111 Prompt] Building per-step embedding list...")
+
+        device = model_management.intermediate_device()
         step_embeddings = []
         for prompt in full_step_prompts:
-            step_embeddings.append(encoded_cache[prompt])
+            cond, pooled = run_embeddings[prompt]
+            # Ensure they are on the right device before sampling starts
+            cond = cond.to(device)
+            if pooled is not None:
+                pooled = pooled.to(device)
+            step_embeddings.append((cond, pooled))
+
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Created {len(step_embeddings)} step embeddings"
+            )
 
         # Use the first step's conditioning as base
         base_cond, base_pooled = step_embeddings[0]
 
-        # Create conditioning with step schedule attached
+        # Create conditioning with step schedule hook attached
+        # The hook automatically receives sample_sigmas during sampling
+        if debug:
+            logger.info("[A1111 Prompt] Creating step conditioning hook...")
         conditioning = create_step_schedule_cond(
-            step_embeddings, steps, base_cond, base_pooled
+            step_embeddings, parse_steps, base_cond, base_pooled, debug=debug
         )
+        if debug:
+            logger.info("[A1111 Prompt] Hook attached to conditioning")
 
-        # If model is provided, set up the wrapper for step-based conditioning
-        if model is not None:
-            from ..hooks import setup_step_conditioning_on_model
-
-            model = model.clone()  # Don't modify the original
-            setup_step_conditioning_on_model(model, step_embeddings, steps)
-            if debug:
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Created step conditioning hook with {len(step_embeddings)} embeddings"
+            )
+            if steps is None:
                 logger.info(
-                    f"[A1111 Prompt] Set up step conditioning on model for {len(step_embeddings)} steps"
+                    "[A1111 Prompt] Steps=None: Will scale to actual sampler steps (percentage-based syntax)"
+                )
+            else:
+                logger.info(
+                    f"[A1111 Prompt] Steps={steps}: Expects sampler to use {steps} steps for accurate step-based syntax"
                 )
 
-        return {"ui": {"text": [text]}, "result": (conditioning, model)}
+        if debug:
+            logger.info(
+                "[A1111 Prompt] ========== ENCODE COMPLETE (scheduled) =========="
+            )
+        return {"ui": {"text": [text]}, "result": (conditioning,)}
+
+    def _uses_step_based_syntax(self, text, debug=False):
+        """
+        Detect if prompt uses step-based syntax (integers) vs percentage-based (decimals).
+
+        Also detects alternation syntax which requires step information.
+
+        Returns True if any scheduling/alternation syntax uses integers without decimals,
+        or if alternation is present.
+
+        Examples:
+            [cat:dog:10] -> True (step-based)
+            [cat:dog:0.5] -> False (percentage-based)
+            [A|B] -> True (alternation needs steps)
+            [A|B:0.5] -> False (scheduled alternation with percentage)
+        """
+
+        # Check for alternation syntax (needs step count)
+        alternation_patterns = [
+            r"\[[^\]]*\|[^\]]*\]",  # [A|B] or [A|B|C]
+        ]
+
+        for pattern in alternation_patterns:
+            if re.search(pattern, text):
+                # Found alternation - check if it has a percentage terminator
+                # [A|B:0.5] or [A|B::0.5] are percentage-based
+                # [A|B] or [A|B:10] are step-based
+                match = re.search(pattern, text)
+                if match:
+                    alt_text = match.group(0)
+                    # Check if it ends with a decimal number
+                    if not re.search(r":\d+\.\d+\]$", alt_text):
+                        if debug:
+                            logger.info(
+                                f"[A1111 Prompt] Detected alternation syntax (requires steps): {alt_text}"
+                            )
+                        return True
+
+        # Match scheduling syntax: [text:text:NUMBER] or [text::NUMBER] or [text:NUMBER]
+        patterns = [
+            r"\[[^\]]+:[^\]]+:(\d+\.?\d*)\]",  # [from:to:when]
+            r"\[[^\]]+::(\d+\.?\d*)\]",  # [from::when]
+            r"\[[^\]]+:(\d+\.?\d*)\]",  # [from:when]
+        ]
+
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+            for match in matches:
+                # If the number doesn't contain a decimal point, it's step-based
+                if "." not in match:
+                    if debug:
+                        logger.info(
+                            f"[A1111 Prompt] Detected step-based syntax: {match}"
+                        )
+                    return True
+
+        return False
+
+    def _get_downstream_steps(self, prompt, start_node_id, debug=False):
+        """
+        Find scheduler/sampler nodes and extract their steps parameter.
+
+        Traverses the workflow graph both downstream (following outputs) and
+        upstream (following sigmas inputs) to find nodes with steps parameter.
+
+        Args:
+            prompt: The workflow graph structure
+            start_node_id: This node's unique ID
+
+        Returns:
+            int: Step count from scheduler, or None if not found
+        """
+        if debug:
+            logger.info(
+                f"[A1111 Prompt] Starting graph traversal from node {start_node_id}"
+            )
+            logger.info(f"[A1111 Prompt] Total nodes in workflow: {len(prompt)}")
+
+        visited = set()
+        queue = deque([start_node_id])
+        nodes_checked = 0
+
+        while queue:
+            node_id = queue.popleft()
+            if node_id in visited:
+                continue
+            visited.add(node_id)
+            nodes_checked += 1
+
+            # Get node info
+            node_info = prompt.get(str(node_id), {})
+            class_type = node_info.get("class_type", "")
+
+            if debug:
+                logger.info(
+                    f"[A1111 Prompt]   [{nodes_checked}] Checking node {node_id}: {class_type}"
+                )
+
+            # Check if this node has a "steps" input
+            inputs = node_info.get("inputs", {})
+            if debug:
+                logger.info(f"[A1111 Prompt]       Inputs: {list(inputs.keys())}")
+
+            if "steps" in inputs:
+                step_value = inputs["steps"]
+                if debug:
+                    logger.info(
+                        f"[A1111 Prompt]       Found 'steps' = {step_value} (type: {type(step_value).__name__})"
+                    )
+
+                # Handle both direct values and linked inputs
+                if isinstance(step_value, (int, float)):
+                    if debug:
+                        logger.info(
+                            f"[A1111 Prompt]       ✓ Found valid step count: {int(step_value)} from {class_type}"
+                        )
+                    return int(step_value)
+                elif isinstance(step_value, list) and len(step_value) >= 2:
+                    # Steps is linked to another node - follow the link
+                    linked_node_id = str(step_value[0])
+                    if debug:
+                        logger.info(
+                            f"[A1111 Prompt]       Steps is linked to node {linked_node_id}, adding to queue..."
+                        )
+                    if linked_node_id not in visited:
+                        queue.appendleft(linked_node_id)  # Check this next (priority)
+
+            # If this node has a "sigmas" input, follow it upstream to find the scheduler
+            if "sigmas" in inputs:
+                sigmas_value = inputs["sigmas"]
+                if isinstance(sigmas_value, list) and len(sigmas_value) >= 2:
+                    scheduler_node_id = str(sigmas_value[0])
+                    if debug:
+                        logger.info(
+                            f"[A1111 Prompt]       Found 'sigmas' input linked to node {scheduler_node_id}, following upstream..."
+                        )
+                    if scheduler_node_id not in visited:
+                        queue.appendleft(
+                            scheduler_node_id
+                        )  # Check scheduler next (priority)
+
+            # Find nodes that use our output as input (downstream nodes)
+            downstream_found = 0
+            for other_id, other_info in prompt.items():
+                if other_id in visited:
+                    continue
+
+                other_inputs = other_info.get("inputs", {})
+                for input_name, input_value in other_inputs.items():
+                    # Check if this input is connected to our output
+                    # Format: [source_node_id, output_index]
+                    if isinstance(input_value, list) and len(input_value) >= 2:
+                        if str(input_value[0]) == str(node_id):
+                            other_class = other_info.get("class_type", "")
+                            if debug:
+                                logger.info(
+                                    f"[A1111 Prompt]       Downstream: {node_id} → {other_id} ({other_class}) via '{input_name}'"
+                                )
+                            queue.append(other_id)
+                            downstream_found += 1
+
+            if downstream_found == 0:
+                if debug:
+                    logger.info("[A1111 Prompt]       No downstream connections found")
+
+        if debug:
+            logger.warning(
+                f"[A1111 Prompt] Checked {nodes_checked} nodes, no valid step count found"
+            )
+            logger.warning(f"[A1111 Prompt] Visited nodes: {sorted(visited)}")
+        return None
 
     def _encode_with_break_isolation(
         self, clip, prompt_text, normalization, is_sdxl, debug
@@ -419,7 +754,7 @@ class A1111PromptNode:
                 ][:5]
                 logger.info(f"[A1111 Prompt]   Sample weights: {weight_samples}")
             else:
-                logger.info(f"[A1111 Prompt] No emphasis weights (all tokens = 1.0)")
+                logger.info("[A1111 Prompt] No emphasis weights (all tokens = 1.0)")
 
         if normalization:
             # A1111 EmphasisOriginal: preserve original mean
@@ -457,7 +792,7 @@ class A1111PromptNode:
         if debug:
             logger.info(f"[A1111 Prompt] SDXL scaling: cond shape {cond.shape}")
             logger.info(
-                f"[A1111 Prompt]   Applying weights to CLIP-L (768 dims) AND CLIP-G (1280 dims)"
+                "[A1111 Prompt]   Applying weights to CLIP-L (768 dims) AND CLIP-G (1280 dims)"
             )
 
         cond = cond.clone()
@@ -467,10 +802,10 @@ class A1111PromptNode:
 
         # A1111 scales BOTH CLIP-L and CLIP-G embeddings
         if debug:
-            logger.info(f"[A1111 Prompt]   Scaling CLIP-L...")
+            logger.info("[A1111 Prompt]   Scaling CLIP-L...")
         cond_l = self._apply_direct_scaling(cond_l, weights_l, normalization, debug)
         if debug:
-            logger.info(f"[A1111 Prompt]   Scaling CLIP-G...")
+            logger.info("[A1111 Prompt]   Scaling CLIP-G...")
         cond_g = self._apply_direct_scaling(cond_g, weights_g, normalization, debug)
 
         return torch.cat([cond_l, cond_g], dim=-1)

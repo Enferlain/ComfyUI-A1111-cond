@@ -72,6 +72,7 @@ The node includes [**A1111-style tag autocomplete**](https://github.com/DominikD
 - **Theme support**: Automatically adapts to ComfyUI's theme (dark/light/custom)
 
 **Features:**
+
 - Alias support: Type `sole_female` → suggests `1girl`
 - Smart insertion: Automatically adds commas and handles spacing
 - Parenthesis escaping: `name_(artist)` → `name_\(artist\)`
@@ -81,6 +82,7 @@ The node includes [**A1111-style tag autocomplete**](https://github.com/DominikD
 - Theme-aware: Respects your ComfyUI color scheme
 
 **Available tag databases:**
+
 - `danbooru.csv` - Main Danbooru database (~140k tags)
 - `e621.csv` - E621 database (furry-focused)
 - `extra-quality-tags.csv` - Quality and style tags (auto-loaded)
@@ -88,20 +90,27 @@ The node includes [**A1111-style tag autocomplete**](https://github.com/DominikD
 
 **Frequency Management:**
 Open browser console and use:
+
 - `window.A1111Autocomplete.getStats()` - View your most used tags
 - `window.A1111Autocomplete.resetFrequency()` - Clear usage data
 - `window.A1111Autocomplete.exportFrequency()` - Backup your data
 
 ### Scheduling
 
-| Syntax          | Meaning                                  |
-| --------------- | ---------------------------------------- |
-| `[cat:dog:0.5]` | Switch from "cat" to "dog" at 50%        |
-| `[cat:dog:10]`  | Switch at step 10 (requires steps input) |
-| `[glasses:0.5]` | Add "glasses" at 50%                     |
-| `[glasses:10]`  | Add at step 10                           |
-| `[hat::0.7]`    | Remove "hat" at 70%                      |
-| `[hat::15]`     | Remove at step 15                        |
+| Syntax          | Meaning                                  | Requires steps? |
+| --------------- | ---------------------------------------- | --------------- |
+| `[cat:dog:0.5]` | Switch from "cat" to "dog" at 50%        | No              |
+| `[cat:dog:10]`  | Switch at step 10 (requires steps input) | **Yes**         |
+| `[glasses:0.5]` | Add "glasses" at 50%                     | No              |
+| `[glasses:10]`  | Add at step 10                           | **Yes**         |
+| `[hat::0.7]`    | Remove "hat" at 70%                      | No              |
+| `[hat::15]`     | Remove at step 15                        | **Yes**         |
+
+**Important**:
+
+- **Percentage-based syntax** (with decimals like `0.5`) works automatically - no steps parameter needed
+- **Step-based syntax** (integers like `10`) requires setting the `steps` parameter to match your sampler
+- The node will detect which syntax you're using and show an error if steps are needed but not provided
 
 **Nested syntax supported:**
 
@@ -155,21 +164,24 @@ This pack provides **two nodes**:
 
 #### Inputs
 
-| Input         | Type   | Required | Description                                      |
-| ------------- | ------ | -------- | ------------------------------------------------ |
-| clip          | CLIP   | Yes      | The CLIP model                                   |
-| text          | STRING | Yes      | Prompt with A1111 syntax                         |
-| model         | MODEL  | No       | Required for alternation/step-based conditioning |
-| steps         | INT    | No       | Total sampling steps (default: 20)               |
-| normalization | BOOL   | No       | Enable EmphasisOriginalNoNorm                    |
-| debug         | BOOL   | No       | Show detailed schedule information               |
+| Input         | Type   | Required | Description                        |
+| ------------- | ------ | -------- | ---------------------------------- |
+| clip          | CLIP   | Yes      | The CLIP model                     |
+| text          | STRING | Yes      | Prompt with A1111 syntax           |
+| normalization | BOOL   | No       | Enable EmphasisOriginalNoNorm      |
+| debug         | BOOL   | No       | Show detailed schedule information |
 
 #### Outputs
 
 | Output       | Type         | Description              |
 | ------------ | ------------ | ------------------------ |
 | conditioning | CONDITIONING | The encoded conditioning |
-| model        | MODEL        | Model with step wrapper  |
+
+**Important**:
+
+- **Percentage syntax** `[cat:dog:0.5]` works with `steps=0` (auto-detects from sampler)
+- **Step-based syntax** `[cat:dog:10]` requires setting `steps` to match your sampler's step count
+- If you use step-based syntax with `steps=0`, you'll get a clear error message
 
 ### A1111 Style Prompt (Negative)
 
@@ -187,20 +199,19 @@ Same as positive, but **without MODEL input**.
 
 ### Workflow
 
-For **alternation and per-step scheduling** to work correctly, you must connect the MODEL input on the positive node:
+The node works with any standard ComfyUI workflow:
 
-```
+```text
         ┌─────────────────────────────┐
-MODEL ──┤  [A1111 Style Prompt]       ├──► MODEL ──────────► Sampler
-CLIP  ──┤                             ├──► CONDITIONING ──► (positive)
+CLIP  ──┤  [A1111 Style Prompt]       ├──► CONDITIONING ──► Sampler (positive)
         └─────────────────────────────┘
 
         ┌─────────────────────────────┐
-CLIP  ──┤  [A1111 Style Prompt (Neg)] ├──► CONDITIONING ──► (negative)
+CLIP  ──┤  [A1111 Style Prompt (Neg)] ├──► CONDITIONING ──► Sampler (negative)
         └─────────────────────────────┘
 ```
 
-Without MODEL connected, only static prompts work (no alternation).
+**Alternation and scheduling work automatically** - no MODEL connection needed! The node uses ComfyUI's hook system to access step information during sampling.
 
 ---
 
@@ -253,17 +264,35 @@ Enable the `debug` input to see detailed information:
 
 ### How Scheduling Works
 
-The node generates the correct prompt text for each step, matching A1111's behavior:
+The node uses ComfyUI's `TransformerOptionsHook` system to swap conditioning per-step:
 
 - All unique prompts are encoded once (efficient caching)
-- Per-step embeddings are stored and swapped via model wrapper
-- Sigma-based step detection maps the sampling progress to steps
+- Per-step embeddings are stored in a hook attached to the conditioning
+- During sampling, the hook receives `sample_sigmas` from the sampler
+- The hook calculates the current step and swaps to the appropriate embedding
+- This works with any sampler/scheduler automatically
+
+### Hidden Inputs (used for auto-detection)
+
+- `prompt`: Receives the full workflow graph structure.
+- `unique_id`: Receives the node's unique ID used to traverse the graph starting from itself.
+
+### Step Parameter Behavior
+
+The node's `INPUT_TYPES` exposes only `clip`, `text`, `normalization`, and `debug`. Step-based syntax and timing are managed as follows:
+
+1. **Auto-detection**: The node automatically detects the total step count from the connected sampler/scheduler downstream.
+2. **Step-based syntax**: Syntax like `[thing:10]` (using integers) requires a connected sampler. If no sampler is found in the graph downstream, the node will raise a clear error.
+3. **Percentage-based syntax**: Syntax like `[thing:0.5]` (using decimals) works without any special requirements and scales to the sampler's step count automatically.
+4. **Recommended**: Use percentage syntax for better flexibility across different step counts.
 
 ### Known Limitations
 
-1. **Alternation is positive-only**: Only the main node (with MODEL input) supports alternation. The negative node will use the first step's prompt if scheduling syntax is present.
+1. **Alternation is positive-only**: Only the main node supports alternation. The negative node will use the first step's prompt if scheduling syntax is present.
 
-2. **Visual parity**: While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ due to architectural differences:
+2. **Step-based syntax requires matching steps**: If you write `[thing:10]` with `steps=20` but your sampler uses 30 steps, the transition will happen at step 10 (not scaled). Use percentage syntax for automatic scaling.
+
+3. **Visual parity**: While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ due to architectural differences:
    - A1111 applies conditioning at the CFGDenoiser level (before model call)
    - This node applies conditioning via model wrapper (during model call)
 

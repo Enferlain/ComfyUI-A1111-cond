@@ -36,15 +36,6 @@ class A1111PromptNegative:
                 "text": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             },
             "optional": {
-                "steps": (
-                    "INT",
-                    {
-                        "default": 20,
-                        "min": 1,
-                        "max": 1000,
-                        "tooltip": "Total sampling steps (used to resolve step-based syntax to first step)",
-                    },
-                ),
                 "normalization": (
                     "BOOLEAN",
                     {"default": False, "label_on": "Enable", "label_off": "Disable"},
@@ -62,7 +53,7 @@ class A1111PromptNegative:
     CATEGORY = "conditioning/advanced"
     OUTPUT_NODE = True
 
-    def encode(self, clip, text, steps=20, normalization=False, debug=False):
+    def encode(self, clip, text, normalization=False, debug=False):
         """
         Encode negative prompt. Uses first step only if scheduling is detected.
         """
@@ -73,8 +64,8 @@ class A1111PromptNegative:
             clip.cond_stage_model, "clip_g"
         )
 
-        # Parse the prompt schedule
-        schedule = get_prompt_schedule(text, steps)
+        # Parse the prompt schedule (use dummy steps as it's not supported for negative)
+        schedule = get_prompt_schedule(text, steps=20)
 
         # Check if scheduling/alternation was used
         if len(schedule) > 1:
@@ -87,7 +78,7 @@ class A1111PromptNegative:
         prompt_text = schedule[0][1] if schedule else ""
 
         if debug:
-            logger.info(f"[A1111 Prompt Negative] ========== DEBUG START ==========")
+            logger.info("[A1111 Prompt Negative] ========== DEBUG START ==========")
             logger.info(
                 f"[A1111 Prompt Negative] Input text: {text[:100]}..."
                 if len(text) > 100

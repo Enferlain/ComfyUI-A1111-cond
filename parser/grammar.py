@@ -26,8 +26,9 @@ prompt: (emphasized | scheduled | alternate_scheduled | alternate | plain | WHIT
         | "(" prompt ":" prompt ")"
         | "[" prompt "]"
 scheduled: "[" [prompt ":"] prompt ":" [WHITESPACE] NUMBER [WHITESPACE] "]"
-alternate_scheduled: "[" prompt ("|" [prompt])+ ":" [":"] [WHITESPACE] NUMBER [WHITESPACE] "]"
+alternate_scheduled: "[" prompt ("|" [prompt])+ ":" DOUBLE_COLON? [WHITESPACE] NUMBER [WHITESPACE] "]"
 alternate: "[" prompt ("|" [prompt])+ "]"
+DOUBLE_COLON: ":"
 WHITESPACE: /\s+/
 plain: /([^\\[\]():|]|\\.)+/
 %import common.SIGNED_NUMBER -> NUMBER

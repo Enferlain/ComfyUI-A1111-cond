@@ -28,7 +28,7 @@ import {
 app.registerExtension({
   name: "A1111PromptNode.ShowText",
   async beforeRegisterNodeDef(nodeType, nodeData, app) {
-    if (nodeData.name === "A1111Prompt") {
+    if (nodeData.name === "A1111Prompt" || nodeData.name === "A1111PromptNegative") {
       /**
        * Populate the node with a readonly text widget showing the prompt
        */
@@ -41,7 +41,18 @@ app.registerExtension({
         // Get the actual text value (could be an array)
         const textValue = Array.isArray(text) ? text[0] : text;
 
-        if (!textValue) return;
+        const currentText = this.widgets?.find((w) => w.name === "text")?.value || "";
+        
+        // Only show if the effective prompt is different from the input text
+        // This avoids clutter when no expansion (TIPO, etc.) is happening
+        if (!textValue || textValue === currentText) {
+          if (displayWidget) {
+            // Hide the widget if it exists but is no longer needed
+            displayWidget.type = "converted-widget"; // Effectively hides it in ComfyUI
+            if (displayWidget.inputEl) displayWidget.inputEl.style.display = "none";
+          }
+          return;
+        }
 
         if (!displayWidget) {
           // Create a new readonly widget to show the prompt
@@ -61,6 +72,9 @@ app.registerExtension({
           displayWidget.serialize = false;
         }
 
+        // Ensure it's visible if we're populating it
+        displayWidget.type = "customtext";
+        if (displayWidget.inputEl) displayWidget.inputEl.style.display = "block";
         displayWidget.value = textValue;
 
         // Resize node to fit the new widget content
@@ -268,6 +282,24 @@ app.registerExtension({
       // Call original handler
       if (onMouseDown) return onMouseDown.apply(this, arguments);
     };
+
+    // Add cleanup on node removal
+    const onRemoved = nodeType.prototype.onRemoved;
+    nodeType.prototype.onRemoved = function () {
+      if (onRemoved) onRemoved.apply(this, arguments);
+
+      // Disconnect observer to prevent leaks
+      if (this._boundaryObserver) {
+        this._boundaryObserver.disconnect();
+        this._boundaryObserver = null;
+      }
+
+      // Cleanup overlay DOM
+      if (this._overlayContainer && this._overlayContainer.parentNode) {
+        this._overlayContainer.parentNode.removeChild(this._overlayContainer);
+        this._overlayContainer = null;
+      }
+    };
   },
 
   async nodeCreated(node) {
@@ -324,17 +356,40 @@ app.registerExtension({
       // Insert overlay before textarea so it appears behind
       textarea.parentNode.style.position = "relative";
       textarea.parentNode.insertBefore(overlayContainer, textarea);
+      node._overlayContainer = overlayContainer;
 
       // Copy textarea styles to mirror
       const copyStyles = () => {
         const computed = window.getComputedStyle(textarea);
-        mirrorDiv.style.font = computed.font;
+        
+        // Critical layout properties
+        mirrorDiv.style.boxSizing = computed.boxSizing;
+        mirrorDiv.style.width = computed.width;
+        mirrorDiv.style.height = computed.height;
         mirrorDiv.style.padding = computed.padding;
         mirrorDiv.style.border = computed.border;
-        mirrorDiv.style.borderColor = "transparent";
-        mirrorDiv.style.lineHeight = computed.lineHeight;
+        mirrorDiv.style.borderColor = "transparent"; // Keep invisible
+        
+        // Font properties - copy individually to be safe
+        mirrorDiv.style.fontFamily = computed.fontFamily;
+        mirrorDiv.style.fontSize = computed.fontSize;
+        mirrorDiv.style.fontWeight = computed.fontWeight;
         mirrorDiv.style.letterSpacing = computed.letterSpacing;
-        mirrorDiv.style.width = computed.width;
+        mirrorDiv.style.lineHeight = computed.lineHeight;
+        
+        // Text wrapping properties
+        mirrorDiv.style.whiteSpace = computed.whiteSpace;
+        mirrorDiv.style.wordWrap = computed.wordWrap;
+        mirrorDiv.style.wordBreak = computed.wordBreak;
+        mirrorDiv.style.overflowWrap = computed.overflowWrap;
+        
+        // Handle scrollbar width difference matching
+        // If textarea has a visible scrollbar, force one on mirror so wrapping matches
+        if (textarea.scrollHeight > textarea.clientHeight) {
+             mirrorDiv.style.overflowY = "scroll";
+        } else {
+             mirrorDiv.style.overflowY = "hidden";
+        }
       };
 
       copyStyles();
@@ -344,6 +399,19 @@ app.registerExtension({
         mirrorDiv.scrollTop = textarea.scrollTop;
         mirrorDiv.scrollLeft = textarea.scrollLeft;
       });
+
+      // Use ResizeObserver to keep mirror synced with textarea size
+      if (node._boundaryObserver) {
+        node._boundaryObserver.disconnect();
+      }
+      const observer = new ResizeObserver(() => {
+        copyStyles();
+        // Force re-sync of scroll after resize as content might reflow
+        mirrorDiv.scrollTop = textarea.scrollTop;
+        mirrorDiv.scrollLeft = textarea.scrollLeft;
+      });
+      observer.observe(textarea);
+      node._boundaryObserver = observer;
     };
 
     const updateBoundaryMarkers = () => {
@@ -381,14 +449,23 @@ app.registerExtension({
 
         html += `<span style="
           display: inline-block;
-          width: 2px;
+          width: 0;
           height: 1.2em;
-          background: ${markerColor};
           vertical-align: middle;
-          margin: 0 1px;
+          position: relative;
+          overflow: visible;
+          margin: 0;
+        "><span style="
+          display: block;
+          position: absolute;
+          left: -1px;
+          top: 0;
+          width: 2px;
+          height: 100%;
+          background: ${markerColor};
           border-radius: 1px;
           opacity: 0.7;
-        "></span>`;
+        "></span></span>`;
 
         lastPos = pos;
       }
@@ -409,6 +486,12 @@ app.registerExtension({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text }),
           });
+          
+          if (!response.ok) {
+            console.warn(`[A1111 Prompt] Tokenization API error: ${response.status}`);
+            return;
+          }
+          
           node._tokenInfo = await response.json();
           node.setDirtyCanvas(true, false);
 

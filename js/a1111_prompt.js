@@ -282,6 +282,24 @@ app.registerExtension({
       // Call original handler
       if (onMouseDown) return onMouseDown.apply(this, arguments);
     };
+
+    // Add cleanup on node removal
+    const onRemoved = nodeType.prototype.onRemoved;
+    nodeType.prototype.onRemoved = function () {
+      if (onRemoved) onRemoved.apply(this, arguments);
+
+      // Disconnect observer to prevent leaks
+      if (this._boundaryObserver) {
+        this._boundaryObserver.disconnect();
+        this._boundaryObserver = null;
+      }
+
+      // Cleanup overlay DOM
+      if (this._overlayContainer && this._overlayContainer.parentNode) {
+        this._overlayContainer.parentNode.removeChild(this._overlayContainer);
+        this._overlayContainer = null;
+      }
+    };
   },
 
   async nodeCreated(node) {
@@ -338,6 +356,7 @@ app.registerExtension({
       // Insert overlay before textarea so it appears behind
       textarea.parentNode.style.position = "relative";
       textarea.parentNode.insertBefore(overlayContainer, textarea);
+      node._overlayContainer = overlayContainer;
 
       // Copy textarea styles to mirror
       const copyStyles = () => {
@@ -389,6 +408,7 @@ app.registerExtension({
         mirrorDiv.scrollLeft = textarea.scrollLeft;
       });
       observer.observe(textarea);
+      node._boundaryObserver = observer;
     };
 
     const updateBoundaryMarkers = () => {
@@ -463,6 +483,12 @@ app.registerExtension({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text }),
           });
+          
+          if (!response.ok) {
+            console.warn(`[A1111 Prompt] Tokenization API error: ${response.status}`);
+            return;
+          }
+          
           node._tokenInfo = await response.json();
           node.setDirtyCanvas(true, false);
 

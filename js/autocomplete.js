@@ -177,12 +177,6 @@ const CARET_PROPERTIES = [
  * @param {number} position - Cursor position in text
  * @returns {Object} Object with x, y, height coordinates
  */
-/**
- * Get cursor coordinates in the viewport
- * @param {HTMLTextAreaElement} element - The textarea element
- * @param {number} position - Cursor position in text
- * @returns {Object} Object with x, y, height coordinates
- */
 function getCaretCoordinates(element, position) {
   if (typeof window === 'undefined') return { x: 0, y: 0, height: 0 };
 
@@ -191,69 +185,73 @@ function getCaretCoordinates(element, position) {
   div.id = 'input-textarea-caret-position-mirror-div';
   document.body.appendChild(div);
 
-  const style = div.style;
-  const computed = window.getComputedStyle(element);
+  try {
+    const style = div.style;
+    const computed = window.getComputedStyle(element);
 
-  // Transfer all layout-affecting properties
-  CARET_PROPERTIES.forEach(prop => {
-    style[prop] = computed[prop];
-  });
+    // Transfer all layout-affecting properties
+    CARET_PROPERTIES.forEach(prop => {
+      style[prop] = computed[prop];
+    });
 
-  // Reset positioning for the mirror
-  style.position = 'absolute';
-  style.visibility = 'hidden';
-  style.pointerEvents = 'none';
-  style.top = '0';
-  style.left = '0';
+    // Reset positioning for the mirror
+    style.position = 'absolute';
+    style.visibility = 'hidden';
+    style.pointerEvents = 'none';
+    style.top = '0';
+    style.left = '0';
 
-  // Force scrollbar behavior to match accurately for width calculations
-  if (element.scrollHeight > element.clientHeight) {
-    style.overflowY = 'scroll';
-  } else {
-    style.overflowY = 'hidden';
+    // Force scrollbar behavior to match accurately for width calculations
+    if (element.scrollHeight > element.clientHeight) {
+      style.overflowY = 'scroll';
+    } else {
+      style.overflowY = 'hidden';
+    }
+
+    // Replicate text content up to the caret
+    div.textContent = element.value.substring(0, position);
+    
+    const span = document.createElement('span');
+    span.textContent = element.value.substring(position) || '.';
+    div.appendChild(span);
+
+    // Get layout-local coordinates
+    // offsetTop/Left are relative to the div's border box
+    const layoutX = span.offsetLeft;
+    const layoutY = span.offsetTop;
+    const layoutHeight = parseInt(computed.lineHeight) || 20;
+
+    // Calculate scaling factor between layout and viewport
+    // This is crucial for ComfyUI's zoom/pan
+    const rect = element.getBoundingClientRect();
+    
+    // Use offsetWidth as the layout width reference
+    // If offsetWidth is 0 (not visible), fallback to 1 to avoid division by zero
+    const layoutWidth = element.offsetWidth || parseFloat(computed.width) || 1;
+    const scale = rect.width / layoutWidth;
+
+    // Map local layout coordinates to viewport coordinates
+    // We account for: 
+    // 1. Textarea's viewport position (rect.left/top)
+    // 2. Local caret offset in layout units (layoutX/Y)
+    // 3. Current scroll position (element.scrollLeft/Top)
+    // 4. Transform scale (scale)
+    // 5. Borders (computed border width)
+    
+    const borderLeft = parseInt(computed.borderLeftWidth) || 0;
+    const borderTop = parseInt(computed.borderTopWidth) || 0;
+
+    return {
+      x: rect.left + (layoutX + borderLeft - element.scrollLeft) * scale,
+      y: rect.top + (layoutY + borderTop - element.scrollTop) * scale,
+      height: layoutHeight * scale
+    };
+  } finally {
+    // Cleanup mirror div from DOM
+    if (div && div.parentNode) {
+      div.parentNode.removeChild(div);
+    }
   }
-
-  // Replicate text content up to the caret
-  div.textContent = element.value.substring(0, position);
-  
-  const span = document.createElement('span');
-  span.textContent = element.value.substring(position) || '.';
-  div.appendChild(span);
-
-  // Get layout-local coordinates
-  // offsetTop/Left are relative to the div's border box
-  const layoutX = span.offsetLeft;
-  const layoutY = span.offsetTop;
-  const layoutHeight = parseInt(computed.lineHeight) || 20;
-
-  // Cleanup mirror
-  document.body.removeChild(div);
-
-  // Calculate scaling factor between layout and viewport
-  // This is crucial for ComfyUI's zoom/pan
-  const rect = element.getBoundingClientRect();
-  
-  // Use offsetWidth as the layout width reference
-  // If offsetWidth is 0 (not visible), fallback to 1 to avoid division by zero
-  const layoutWidth = element.offsetWidth || parseFloat(computed.width) || 1;
-  const scale = rect.width / layoutWidth;
-
-  // Map local layout coordinates to viewport coordinates
-  // We account for: 
-  // 1. Textarea's viewport position (rect.left/top)
-  // 2. Local caret offset in layout units (layoutX/Y)
-  // 3. Current scroll position (element.scrollLeft/Top)
-  // 4. Transform scale (scale)
-  // 5. Borders (computed border width)
-  
-  const borderLeft = parseInt(computed.borderLeftWidth) || 0;
-  const borderTop = parseInt(computed.borderTopWidth) || 0;
-
-  return {
-    x: rect.left + (layoutX + borderLeft - element.scrollLeft) * scale,
-    y: rect.top + (layoutY + borderTop - element.scrollTop) * scale,
-    height: layoutHeight * scale
-  };
 }
 
 /**
@@ -457,11 +455,6 @@ function insertTag(index = selectedIndex) {
   const matchAfter = afterWord.match(/^\s*[,:]/);
   if (!matchAfter) {
     suffix = ", ";
-  } else if (!afterWord.startsWith(", ")) {
-    // If it has a comma but no space, maybe add space
-    if (afterWord.startsWith(",") && !afterWord.startsWith(", ")) {
-      // Just ensure space exists after
-    }
   }
 
   const newText = beforeWord + tagName + suffix + afterWord;
@@ -755,5 +748,13 @@ app.registerExtension({
     };
 
     requestAnimationFrame(waitForTextarea);
+  },
+  onRemoved() {
+    // Global cleanup if needed when extension is removed (less common in ComfyUI, 
+    // but good practice if the extension is ever reloadable)
+    if (autocompletePopup && autocompletePopup.parentNode) {
+      autocompletePopup.parentNode.removeChild(autocompletePopup);
+      autocompletePopup = null;
+    }
   },
 });

@@ -56,7 +56,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         existing_wrapper = model_options.get("model_function_wrapper")
         if existing_wrapper is not None:
             logger.warning(
-                f"[A1111 Hook] Found existing model_function_wrapper, will chain them"
+                "[A1111 Hook] Found existing model_function_wrapper, will chain them"
             )
 
             # Create a chained wrapper
@@ -69,7 +69,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
             model_options["model_function_wrapper"] = chained_wrapper
         else:
             logger.info(
-                f"[A1111 Hook] Registering model_function_wrapper on model_options"
+                "[A1111 Hook] Registering model_function_wrapper on model_options"
             )
             model_options["model_function_wrapper"] = self.model_function_wrapper
 
@@ -129,10 +129,10 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         # Log on very first call to confirm wrapper is active
         if self._last_logged_step == -1:
             logger.info(
-                f"[A1111 Hook] ========== WRAPPER CALLED - HOOK IS ACTIVE =========="
+                "[A1111 Hook] ========== WRAPPER CALLED - HOOK IS ACTIVE =========="
             )
             if existing_wrapper is not None:
-                logger.info(f"[A1111 Hook] Chaining with existing wrapper")
+                logger.info("[A1111 Hook] Chaining with existing wrapper")
 
         input_x = args["input"]
         timestep = args["timestep"]
@@ -174,7 +174,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
         step_idx = max(0, min(step_idx, len(self.step_embeddings) - 1))
 
         # Get target conditioning for this step
-        target_cond, target_pooled = self.step_embeddings[step_idx]
+        target_cond, _target_pooled = self.step_embeddings[step_idx]
 
         # Log step changes (deduplicated)
         if step_idx != self._last_logged_step:
@@ -194,7 +194,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
 
         # Debug logging on first call - check conditions
         if not self._first_swap_logged:
-            logger.debug(f"[A1111 Hook] === CHECKING SWAP CONDITIONS ===")
+            logger.debug("[A1111 Hook] === CHECKING SWAP CONDITIONS ===")
             logger.debug(
                 f"[A1111 Hook] target_cond is not None: {target_cond is not None}"
             )
@@ -210,7 +210,7 @@ class A1111StepConditioningHook(TransformerOptionsHook):
 
             # Log details on first swap
             if not self._first_swap_logged:
-                logger.debug(f"[A1111 Hook] === FIRST CONDITIONING SWAP ===")
+                logger.debug("[A1111 Hook] === FIRST CONDITIONING SWAP ===")
                 logger.debug(
                     f"[A1111 Hook] Original c_crossattn shape: {orig_cond.shape}"
                 )
@@ -284,34 +284,16 @@ class A1111StepConditioningHook(TransformerOptionsHook):
                 logger.debug(
                     f"[A1111 Hook] Final modified_cond shape: {modified_cond.shape}"
                 )
-                logger.debug(f"[A1111 Hook] === SWAP COMPLETE ===")
+                logger.debug("[A1111 Hook] === SWAP COMPLETE ===")
                 self._first_swap_logged = True  # Mark first swap as complete
         elif not self._first_swap_logged:
-            logger.warning(f"[A1111 Hook] Conditioning swap skipped!")
+            logger.warning("[A1111 Hook] Conditioning swap skipped!")
             if target_cond is None:
-                logger.warning(f"[A1111 Hook]   - target_cond is None")
+                logger.warning("[A1111 Hook]   - target_cond is None")
             if "c_crossattn" not in c:
-                logger.warning(f"[A1111 Hook]   - c_crossattn not in c")
+                logger.warning("[A1111 Hook]   - c_crossattn not in c")
             if not has_positive:
-                logger.warning(f"[A1111 Hook]   - no positive conditioning in batch")
-
-            # NOTE: Pooled output (y) swapping disabled - testing if it improves A1111 parity
-            # The pooled output might have different timing characteristics that affect
-            # how the style "settles" in later steps.
-            # if target_pooled is not None and "y" in c:
-            #     orig_y = c["y"]
-            #     if orig_y.shape[-1] == 2816:  # SDXL
-            #         new_pooled = target_pooled.to(device=device, dtype=dtype).clone()
-            #         modified_y = orig_y.clone()
-            #
-            #         # Only swap positive positions
-            #         for batch_idx, cond_type in enumerate(cond_or_uncond):
-            #             if cond_type == 0 and batch_idx < modified_y.shape[0]:
-            #                 # Replace first 1280 dims with our pooled output
-            #                 modified_y[batch_idx, :1280] = new_pooled[0]
-            #
-            #         c["y"] = modified_y
-            #         logging.debug(f"  Also swapped pooled output (first 1280 of y)")
+                logger.warning("[A1111 Hook]   - no positive conditioning in batch")
 
         # CRITICAL: Update args with modified c before calling model
         # This ensures our conditioning changes are actually used

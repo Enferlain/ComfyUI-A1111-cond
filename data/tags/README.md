@@ -21,7 +21,7 @@ The autocomplete system will automatically look for tag files in:
 
 Tag files use the following CSV format:
 
-```
+```csv
 name,type,postCount,"aliases"
 ```
 

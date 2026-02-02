@@ -343,16 +343,22 @@ if _HAS_SERVER and PromptServer:
         tag_file = data.get(
             "tag_file"
         )  # Will use DEFAULT_TAG_FILE in ensure_database_loaded if None
-        extra_files = data.get(
-            "extra_files", ["extra-quality-tags.csv"]
-        )  # Load quality tags by default
+
+        # Normalize extra_files: must be a list of strings
+        extra_files = data.get("extra_files")
+        if extra_files is None:
+            extra_files = ["extra-quality-tags.csv"]
+        elif isinstance(extra_files, str):
+            extra_files = [extra_files]
+        elif not isinstance(extra_files, list):
+            extra_files = ["extra-quality-tags.csv"]
+
         search_aliases = data.get("search_aliases", True)
 
         # Ensure database is loaded
-        if tag_file:
-            db = ensure_database_loaded(tag_file, extra_files=extra_files)
-        else:
-            db = ensure_database_loaded(extra_files=extra_files)
+        db = ensure_database_loaded(
+            tag_file or DEFAULT_TAG_FILE, extra_files=extra_files
+        )
 
         # Perform search
         results = db.search(query, limit=limit, search_aliases=search_aliases)

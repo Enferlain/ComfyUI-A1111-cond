@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-02-02
+
+### Added
+
+- **API Normalization**: The `autocomplete` API now robustly handles the `extra_files` parameter, coercing strings to lists and providing sensible defaults to prevent server-side errors.
+
+### Fixed
+
+- **Documentation Improvements**:
+  - Removed outdated `steps` input from `README.md` to reflect new auto-detection behavior.
+  - Fixed MD040 markdown linting errors across all README files (added missing language tags to code blocks).
+  - Clarified step-based vs. percentage-based syntax requirements in the main documentation.
+- **JS Lifecycle Cleanup**:
+  - Implemented `ResizeObserver` disconnection and DOM cleanup in the token counter logic to prevent memory leaks.
+  - Added defensive `try...finally` blocks for DOM mirror operations to ensure layout artifacts are always cleaned up.
+  - Removed dead code in tag insertion suffix logic.
+- **Backend Optimizations**:
+  - Optimized workflow graph traversal using `collections.deque` for O(1) queue operations, significantly improving performance for large workflows.
+  - Suppressed unused variable warnings in `hooks.py` while preserving code for technical parity testing.
+  - Cleaned up redundant f-string prefixes for improved clarity and minor performance gains.
+
 ## [Unreleased] - 2026-01-31
 
 ### Added

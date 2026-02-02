@@ -3,13 +3,27 @@
 ## ✅ Recently Completed
 
 ### Hook System Refactor (NEW!)
+
 - [x] Replaced MODEL input requirement with TransformerOptionsHook
 - [x] Auto-detect step count from sampler's sample_sigmas
 - [x] Simplified workflow: CLIP → Node → Sampler (no MODEL needed)
 - [x] Step-based syntax now scales to actual sampler steps
 - [x] Updated documentation and created migration guide
 
+### Maintenance & Quality (2026-02-02)
+
+- [x] **Memory Leak Fixes**:
+  - [x] Implemented `onRemoved` cleanup for token counter and autocomplete popups
+  - [x] Added `try...finally` for defensive DOM cleanup in coordinate calculations
+- [x] **Performance**: Optimized BFS graph traversal using `collections.deque`
+- [x] **API Robustness**:
+  - [x] Added normalization for `extra_files` parameters
+  - [x] Implemented status code checking for all frontend API calls
+- [x] **Code Quality**: Removed dead code, optimized log strings, and addressed linter warnings
+- [x] **Documentation**: Fixed README formatting/lints and documented hidden inputs
+
 ### Token Counter & Autocomplete
+
 - [x] Token counter in node header (`45/75 | 32/75`)
 - [x] BREAK-aware sequence counting
 - [x] Real tokenization (no estimation)
@@ -106,13 +120,21 @@
 
 ### Negative Prompt Node
 
-- [ ] Dedicated negative prompt variant
-- [ ] Shared syntax highlighting/autocomplete
+- [x] Dedicated negative prompt variant
+- [x] Shared syntax highlighting/autocomplete
 
 ### Prompt Macros
 
 - [ ] Define reusable prompt fragments
 - [ ] `{macro_name}` expansion
+
+### Technical Debt & Refinement
+
+- [ ] Standardize null-checking patterns across all JS files (prefer `?.`)
+- [ ] Improve blur handling race condition in autocomplete (timeout/clearTimeout pattern)
+- [ ] Add unit tests for graph traversal logic (`_get_downstream_steps`)
+- [ ] Add JSDoc comments to all public functions in `autocomplete.js`
+- [ ] Standardize error response formatting across all backend API endpoints
 
 ---
 

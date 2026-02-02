@@ -1,1 +1,3 @@
 lark
+torch
+aiohttp

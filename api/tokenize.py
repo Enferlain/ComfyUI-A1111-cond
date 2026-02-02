@@ -46,6 +46,13 @@ def strip_a1111_syntax(text: str) -> str:
     text = text.replace("\\[", "\x00LBRACK\x00")
     text = text.replace("\\]", "\x00RBRACK\x00")
 
+    # Remove weight specifications: :1.2) at end of emphasis
+    # This handles (word:1.2)
+    text = re.sub(r":[\d.]+(?=\))", "", text)
+
+    # Remove any remaining weight specs that might be floating
+    text = re.sub(r":[\d.]+(?=\s|$)", "", text)
+
     # Handle bracket expressions: [A|B|C] or [from:to:when]
     # Keep the LONGEST option for worst-case token counting
     def keep_longest_option(match):
@@ -55,10 +62,8 @@ def strip_a1111_syntax(text: str) -> str:
             # It's alternation [A|B|C] - find longest option
             options = content.split("|")
             # Remove any trailing :number from last option (scheduled alternation)
-            # e.g., [A|B:0.5] -> options = ["A", "B:0.5"]
             last = options[-1]
             if ":" in last:
-                # Check if it ends with :number
                 colon_match = re.match(r"^(.+?)::?[\d.]+$", last)
                 if colon_match:
                     options[-1] = colon_match.group(1)
@@ -70,30 +75,24 @@ def strip_a1111_syntax(text: str) -> str:
             # It's scheduling [from:to:when] - keep longer of from/to
             parts = content.split(":")
             if len(parts) >= 2:
-                # parts[0] = from, parts[1] = to, parts[2+] = when (numbers)
                 from_part = parts[0]
                 to_part = parts[1] if len(parts) > 1 else ""
-                # Return the longer of from/to
-                return from_part if len(from_part) >= len(to_part) else to_part
+
+                # Compare based on tokenizable length (ignoring parens) for better worst-case estimation
+                clean_from = from_part.replace("(", "").replace(")", "").strip()
+                clean_to = to_part.replace("(", "").replace(")", "").strip()
+
+                return from_part if len(clean_from) >= len(clean_to) else to_part
             return content
 
         else:
-            # Simple bracket emphasis [word] - just return content
             return content
 
     # Process bracket expressions - non-greedy match for innermost brackets
-    # Repeat to handle nested structures
     prev_text = None
     while prev_text != text:
         prev_text = text
         text = re.sub(r"\[([^\[\]]*)\]", keep_longest_option, text)
-
-    # Remove weight specifications: :1.2) at end of emphasis
-    # This handles (word:1.2)
-    text = re.sub(r":[\d.]+(?=\))", "", text)
-
-    # Remove any remaining weight specs that might be floating
-    text = re.sub(r":[\d.]+(?=\s|$)", "", text)
 
     # Remove parentheses (they're just syntax markers now)
     text = text.replace("(", " ")

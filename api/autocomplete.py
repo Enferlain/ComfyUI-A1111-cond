@@ -187,7 +187,7 @@ class TagDatabase:
             return []
 
         query_lower = query.lower().strip()
-        if not query_lower:
+        if not query_lower or len(query_lower) > 255:
             return []
 
         results: List[Tuple[int, TagEntry, Optional[str]]] = []
@@ -339,6 +339,10 @@ if _HAS_SERVER and PromptServer:
             return web.json_response({"error": "Invalid JSON"}, status=400)
 
         query = data.get("query", "")
+        if len(query) > 255:
+            return web.json_response(
+                {"results": [], "tag_count": 0, "error": "Query too long"}
+            )
         limit = min(data.get("limit", 20), 100)  # Cap at 100
         tag_file = data.get(
             "tag_file"

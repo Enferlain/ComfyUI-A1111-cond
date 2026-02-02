@@ -1,0 +1,30 @@
+[project]
+name = "a1111-prompt-node"
+description = "A custom ComfyUI node that implements A1111-style prompt handling with proper isolation and emphasis math."
+version = "1.0.0"
+license = {file = "LICENSE"}
+authors = [
+    { name = "Enferlain" }
+]
+dependencies = ["lark", "torch", "aiohttp"]
+
+[project.urls]
+Repository = "https://github.com/Enferlain/ComfyUI-A1111-cond"
+"Bug Tracker" = "https://github.com/Enferlain/ComfyUI-A1111-cond/issues"
+
+[tool.comfy]
+PublisherId = "Enferlain"
+DisplayName = "A1111 Prompt Node"
+Icon = ""
+includes = [
+    "nodes/",
+    "parser/",
+    "api/",
+    "js/",
+    "data/",
+    "__init__.py",
+    "hooks.py",
+    "LICENSE",
+    "README.md",
+    "requirements.txt"
+]

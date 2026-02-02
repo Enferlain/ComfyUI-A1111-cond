@@ -14,15 +14,15 @@ pip install lark
 
 ### Positive prompt node
 
-<img width="790" height="527" alt="image" src="https://github.com/user-attachments/assets/67c12e99-cf35-4d2e-af84-0e258fa6915d" />
+<img width="1082" height="665" alt="image" src="https://github.com/user-attachments/assets/c54215a5-9eee-42e9-8deb-8d2b77ffcc06" />
 
 ### Negative prompt node
 
-<img width="363" height="241" alt="image" src="https://github.com/user-attachments/assets/ba1da788-dc47-4939-bcbe-d1699ea9f872" />
+<img width="1289" height="563" alt="image" src="https://github.com/user-attachments/assets/7981b125-0319-4eea-a752-30590be54a47" />
 
 ### Full setup with optional TIPO support
 
-<img width="1755" height="813" alt="image" src="https://github.com/user-attachments/assets/d430189f-6f50-42e9-8503-afa8d6d7db8a" />
+<img width="1788" height="753" alt="image" src="https://github.com/user-attachments/assets/055e0f63-f158-4d34-934a-08e235fc8281" />
 
 ### Core Features
 
@@ -135,9 +135,9 @@ Control when alternation starts or stops:
 
 | Syntax               | Meaning                                   |
 | -------------------- | ----------------------------------------- |
-| `[as109\|fkey::0.6]` | Alternate until 60%, then nothing         |
-| `[as109\|fkey:0.4]`  | Nothing until 40%, then start alternating |
-| `[as109\|fkey::15]`  | Alternate until step 15, then nothing     |
+| `[as109\|fkey::0.6]` | Alternate until 60%, then as109           |
+| `[as109\|fkey:0.4]`  | as109 until 40%, then start alternating   |
+| `[as109\|fkey::15]`  | Alternate until step 15, then as109       |
 
 **Combining with scheduling to lock to a value:**
 

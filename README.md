@@ -327,3 +327,7 @@ Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control e
 - **Optimized Padding**: Tensors are padded only to the lengths used within the current generation, preventing global cache bloat.
 - **Direct Memory Swapping**: If prompts have identical sequence lengths, the hook uses a zero-math "fast-path" to swap embeddings instantly.
 - **Batch Processing**: Multiple BREAK segments are batched into a single encoding pass.
+
+---
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Enferlain/ComfyUI-A1111-cond)

@@ -97,20 +97,23 @@ Open browser console and use:
 
 ### Scheduling
 
-| Syntax          | Meaning                                  | Requires steps? |
-| --------------- | ---------------------------------------- | --------------- |
-| `[cat:dog:0.5]` | Switch from "cat" to "dog" at 50%        | No              |
-| `[cat:dog:10]`  | Switch at step 10 (requires steps input) | **Yes**         |
-| `[glasses:0.5]` | Add "glasses" at 50%                     | No              |
-| `[glasses:10]`  | Add at step 10                           | **Yes**         |
-| `[hat::0.7]`    | Remove "hat" at 70%                      | No              |
-| `[hat::15]`     | Remove at step 15                        | **Yes**         |
+| Syntax          | Meaning                           | Auto-detects? |
+| --------------- | --------------------------------- | ------------- |
+| `[cat:dog:0.5]` | Switch from "cat" to "dog" at 50% | Yes           |
+| `[cat:dog:10]`  | Switch at step 10 (literal count) | Yes           |
+| `[glasses:0.5]` | Add "glasses" at 50%              | Yes           |
+| `[glasses:10]`  | Add at step 10                    | Yes           |
+| `[hat::0.7]`    | Remove "hat" at 70%               | Yes           |
+| `[hat::15]`     | Remove at step 15                 | Yes           |
+
+**Note**: The node automatically detects the total step count from your connected Sampler or Scheduler.
 
 **Important**:
 
-- **Percentage-based syntax** (with decimals like `0.5`) works automatically - no steps parameter needed
-- **Step-based syntax** (integers like `10`) requires setting the `steps` parameter to match your sampler
-- The node will detect which syntax you're using and show an error if steps are needed but not provided
+- **Steps are automatic**: You do not need to manually set a step count; the node traverses the workflow graph to find the connected Sampler/Scheduler.
+- **Scaling**:
+  - **Percentages** (e.g., `0.5`) scale proportionally to any sampler step count.
+  - **Integers** (e.g., `10`) are tied to the detected step count. If the sampler steps are changed after encoding, the node automatically scales the transition point to maintain the same relative timing.
 
 **Nested syntax supported:**
 
@@ -179,9 +182,8 @@ This pack provides **two nodes**:
 
 **Important**:
 
-- **Percentage syntax** `[cat:dog:0.5]` works with `steps=0` (auto-detects from sampler)
-- **Step-based syntax** `[cat:dog:10]` requires setting `steps` to match your sampler's step count
-- If you use step-based syntax with `steps=0`, you'll get a clear error message
+- **Auto-detection**: The node detects steps from the downstream sampler. If no sampler is connected, step-based syntax (`[a:b:10]`) will raise an error.
+- **Flexibility**: Use percentage syntax (`[a:b:0.5]`) for the most portable prompts.
 
 ### A1111 Style Prompt (Negative)
 
@@ -282,15 +284,14 @@ The node uses ComfyUI's `TransformerOptionsHook` system to swap conditioning per
 The node's `INPUT_TYPES` exposes only `clip`, `text`, `normalization`, and `debug`. Step-based syntax and timing are managed as follows:
 
 1. **Auto-detection**: The node automatically detects the total step count from the connected sampler/scheduler downstream.
-2. **Step-based syntax**: Syntax like `[thing:10]` (using integers) requires a connected sampler. If no sampler is found in the graph downstream, the node will raise a clear error.
-3. **Percentage-based syntax**: Syntax like `[thing:0.5]` (using decimals) works without any special requirements and scales to the sampler's step count automatically.
-4. **Recommended**: Use percentage syntax for better flexibility across different step counts.
+2. **Step-based syntax**: Syntax like `[thing:10]` (using integers) is relative to the detected count. The node scales these points automatically if the sampler step count changes during sampling to ensure consistent timing.
+3. **Percentage-based syntax**: Syntax like `[thing:0.5]` (using decimals) is the recommended way to ensure your prompt behaves identically across different step counts.
 
 ### Known Limitations
 
 1. **Alternation is positive-only**: Only the main node supports alternation. The negative node will use the first step's prompt if scheduling syntax is present.
 
-2. **Step-based syntax requires matching steps**: If you write `[thing:10]` with `steps=20` but your sampler uses 30 steps, the transition will happen at step 10 (not scaled). Use percentage syntax for automatic scaling.
+2. **Automatic Scaling**: Unlike A1111 (where steps are manual), this node provides **automatic scaling**. If you write `[thing:10]` for a 20-step run but later change it to 30 steps, the node will automatically move the transition to step 15 to preserve the 50% relative timing. Use percentage syntax `[thing:0.5]` for the most explicit control.
 
 3. **Visual parity**: While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ due to architectural differences:
    - A1111 applies conditioning at the CFGDenoiser level (before model call)
@@ -302,7 +303,9 @@ Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control e
 
 ## Performance
 
-- **Efficient encoding**: Unique prompts are encoded only once and cached
-- `[A|B]` with 28 steps only encodes 2 prompts, not 28
-- All embeddings are padded to the same length for efficient swapping
-- BREAK segments are batched together for efficient processing
+- **Efficient encoding**: Unique prompts are encoded only once and cached using composite keys (CLIP + text + normalization).
+- **GPU Pre-Allocation**: All embeddings are pre-moved to the GPU (`intermediate_device`) during encoding to eliminate device-transfer latency during the sampling loop.
+- **Shared Hook Caching**: The step-swapping hook uses a structural result cache that persists even when the hook is cloned, ensuring zero-overhead for 2nd order samplers like Euler a or DPM++ 2M.
+- **Optimized Padding**: Tensors are padded only to the lengths used within the current generation, preventing global cache bloat.
+- **Direct Memory Swapping**: If prompts have identical sequence lengths, the hook uses a zero-math "fast-path" to swap embeddings instantly.
+- **Batch Processing**: Multiple BREAK segments are batched into a single encoding pass.

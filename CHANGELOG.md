@@ -5,30 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2026-02-02
+## [1.0.0] - 2026-02-02
 
-- **API Normalization**: The `autocomplete` API now robustly handles the `extra_files` parameter, coercing strings to lists and providing sensible defaults.
-- **Memory Management Refinements**:
-  - **Bounded Caching**: Implemented instance-level prompt encoding cache with strict enforcement during execution to prevent unbounded growth.
-  - **Internal Cleanup**: Added explicit tensor deletion in `hooks.py` to prevent accumulation.
-  - **Leak Prevention**: Refactored frontend extensions to properly disconnect `ResizeObserver` instances and remove global click listeners upon node removal.
+### 🎉 Launch!
 
-- **Hotfixes & Stability**:
-  - **Backend**: Restored missing `transformers_dict` initialization in `hooks.py` to fix `AttributeError` crash.
-  - **Frontend**: Merged duplicate `nodeCreated` hooks in `autocomplete.js` to restore extension functionality.
-- **Performance Optimization**:
-  - **Shared Caching**: Implemented a structural result cache in `hooks.py` that persists across hook clones, critical for 2nd order samplers (DPM++ 2M, etc.).
-  - **GPU Pre-Allocation**: Moved all embeddings to the GPU during the encoding phase to eliminate device-transfer latency.
-  - **Zero-Allocation Hot-Path**: Reduced Python overhead to the absolute minimum for standard and scheduled runs.
-- **Log Management**: Silenced all verbose console logs (encoding progress, graph traversal, and hook execution) behind the `debug` flag.
-- **Stability & Determinism**: Fixed a regression in the identity check logic that caused intermittent "skipped swaps" and ensured perfect image consistency across all sampler types.
-- **Code Quality & PR Feedback**:
-  - **Exception Handling**: Moved verbose step-detection errors to a dedicated `StepCountRequiredError` class.
-  - **Memory Optimization**: Limited tensor padding to only the prompts used in the current generation, preventing global cache bloat.
-  - **Schedule Precision**: Implemented linear index scaling in `hooks.py` to ensure percentage-based schedules remain accurate even when sampler step counts vary from defaults.
-  - **Cache Key Robustness**: Updated encoding cache to use composite keys (CLIP identity + normalization), ensuring embeddings are never reused in incompatible contexts.
-  - **Improved Cache Management**: Refactored cache clearing to happen before execution loops, preventing data loss during multi-prompt runs.
-  - **UI Robustness**: Improved autocomplete error handling to correctly reset internal selection state upon backend failure.
+Stable release on the ComfyUI Registry with full parity verification and security hardening.
+
+### Added
+
+- **Comprehensive Test Suite**: 5 new test categories verifying the scheduler, hooks, node math, tokenizer, and API security.
+- **GitHub Registry CI**: Added automated publication workflow for ComfyUI Registry.
+- **Project Metadata**: Full `pyproject.toml` and `requirements.txt` integration for standardized distribution.
+
+### Security
+
+- **API Hardening**: Implemented a 255-character query length limit for the `autocomplete` API to prevent long-query DOS attempts.
+
+### Changed
+
+- **Verified A1111 Parity**:
+  - Verified `BREAK` isolation logic ensures zero concept bleeding between segments.
+  - Confirmed `_apply_direct_scaling` math exactly match A1111 emphasis (multiplication vs interpolation).
+  - Verified `normalization` accurately implements A1111 "Mean Rescaling" (Norm vs No Norm).
+- **Hooks Scaling**: Improved hook sigma-to-step conversion for better accuracy in low-step (2-4 steps) generations.
+
+### Refinements
+
+- **Memory Management**:
+  - Bounded caching for prompt encoding to prevent memory leak on high-volume runs.
+  - Explicit tensor cleanup in hook executions.
+  - Frontend lifecycle management for `ResizeObserver` and global listeners.
+- **Performance**:
+  - GPU pre-allocation for per-step embeddings.
+  - Shared result caching for cloned hooks in 2nd order samplers.
+  - Zero-allocation hot-path for sampling loop swapping.
 
 ## [Unreleased] - 2026-01-31
 

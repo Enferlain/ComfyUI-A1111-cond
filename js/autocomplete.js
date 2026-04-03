@@ -17,11 +17,14 @@ let currentTextarea = null;
 let currentWordInfo = null;
 let selectedIndex = -1;
 let currentResults = [];
-let debounceTimeout = null;
 
 // Frequency tracking
 const FREQUENCY_STORAGE_KEY = "a1111_tag_frequency";
 let tagFrequency = {}; // tag_name -> usage_count
+
+function normalizeFrequencyKey(tagName) {
+  return String(tagName || "").trim().toLowerCase();
+}
 
 /**
  * Load tag frequency data from localStorage
@@ -30,7 +33,13 @@ function loadTagFrequency() {
   try {
     const stored = localStorage.getItem(FREQUENCY_STORAGE_KEY);
     if (stored) {
-      tagFrequency = JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      tagFrequency = Object.fromEntries(
+        Object.entries(parsed || {}).map(([tag, count]) => [
+          normalizeFrequencyKey(tag),
+          Number(count) || 0,
+        ])
+      );
     }
   } catch (e) {
     console.warn("Failed to load tag frequency:", e);
@@ -54,7 +63,9 @@ function saveTagFrequency() {
  * @param {string} tagName - The tag name
  */
 function incrementTagFrequency(tagName) {
-  tagFrequency[tagName] = (tagFrequency[tagName] || 0) + 1;
+  const key = normalizeFrequencyKey(tagName);
+  if (!key) return;
+  tagFrequency[key] = (tagFrequency[key] || 0) + 1;
   saveTagFrequency();
 }
 
@@ -64,20 +75,7 @@ function incrementTagFrequency(tagName) {
  * @returns {number} Usage count
  */
 function getTagFrequency(tagName) {
-  return tagFrequency[tagName] || 0;
-}
-
-/**
- * Calculate frequency boost score
- * Uses logarithmic scaling to prevent over-boosting
- * @param {number} frequency - Usage count
- * @returns {number} Boost score
- */
-function calculateFrequencyBoost(frequency) {
-  if (frequency === 0) return 0;
-  // Logarithmic boost: log2(frequency + 1)
-  // This gives: 1 use = 1.0, 3 uses = 2.0, 7 uses = 3.0, 15 uses = 4.0
-  return Math.log2(frequency + 1);
+  return tagFrequency[normalizeFrequencyKey(tagName)] || 0;
 }
 
 // Load frequency data on startup
@@ -372,27 +370,24 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo) {
  * @returns {Array} Sorted suggestions
  */
 function sortByFrequency(suggestions) {
-  return suggestions.map(tag => {
+  return suggestions.map((tag, index) => {
     const frequency = getTagFrequency(tag.name);
-    const frequencyBoost = calculateFrequencyBoost(frequency);
     
-    // Combined score: base score (from backend) + frequency boost
-    // Backend already provides relevance score via ordering
-    // We add frequency boost to prioritize frequently used tags
     return {
       ...tag,
+      _originalIndex: index,
       _frequency: frequency,
-      _frequencyBoost: frequencyBoost
     };
   }).sort((a, b) => {
-    // Sort by frequency boost first (higher is better)
-    const freqDiff = b._frequencyBoost - a._frequencyBoost;
-    if (Math.abs(freqDiff) > 0.5) { // Only prioritize if significant difference
-      return freqDiff;
+    if (b._frequency !== a._frequency) {
+      return b._frequency - a._frequency;
     }
-    
-    // Then by post count (backend relevance)
-    return b.count - a.count;
+
+    if (b.count !== a.count) {
+      return b.count - a.count;
+    }
+
+    return a._originalIndex - b._originalIndex;
   });
 }
 
@@ -696,40 +691,74 @@ app.registerExtension({
 
       const textarea = textWidget.inputEl;
       let suppressAutocomplete = false;
+      let debounceTimeout = null;
+      let queryVersion = 0;
+
+      const scheduleAutocomplete = (delay = 100) => {
+        clearTimeout(debounceTimeout);
+        const scheduledVersion = ++queryVersion;
+
+        debounceTimeout = setTimeout(async () => {
+          if (!textarea.isConnected || document.activeElement !== textarea) {
+            return;
+          }
+
+          const cursorPos = textarea.selectionStart;
+          const wordInfo = getCurrentWord(textarea.value, cursorPos);
+
+          if (wordInfo.word.length < 2) {
+            hideAutocompletePopup();
+            return;
+          }
+
+          const textSnapshot = textarea.value;
+          const selectionSnapshot = textarea.selectionStart;
+          const suggestions = await fetchTagSuggestions(wordInfo.word);
+
+          if (suggestions === null) {
+            return;
+          }
+
+          if (
+            scheduledVersion !== queryVersion ||
+            !textarea.isConnected ||
+            document.activeElement !== textarea ||
+            textarea.value !== textSnapshot ||
+            textarea.selectionStart !== selectionSnapshot
+          ) {
+            return;
+          }
+
+          const latestWordInfo = getCurrentWord(
+            textarea.value,
+            textarea.selectionStart
+          );
+          if (
+            latestWordInfo.word !== wordInfo.word ||
+            latestWordInfo.start !== wordInfo.start ||
+            latestWordInfo.end !== wordInfo.end
+          ) {
+            return;
+          }
+
+          if (suggestions.length > 0) {
+            showAutocompleteSuggestions(suggestions, textarea, latestWordInfo);
+          } else {
+            hideAutocompletePopup();
+          }
+        }, delay);
+      };
 
       // Add input event listener for autocomplete
       textarea.addEventListener("input", async (e) => {
         if (suppressAutocomplete) {
           suppressAutocomplete = false;
+          queryVersion++;
           hideAutocompletePopup();
           return;
         }
 
-        // Clear existing debounce
-        if (debounceTimeout) {
-          clearTimeout(debounceTimeout);
-        }
-
-        // Debounce the search to avoid excessive API calls
-        debounceTimeout = setTimeout(async () => {
-          const cursorPos = textarea.selectionStart;
-          const wordInfo = getCurrentWord(textarea.value, cursorPos);
-
-          if (wordInfo.word.length >= 2) {
-            const suggestions = await fetchTagSuggestions(wordInfo.word);
-            if (suggestions === null) {
-              // Error already shown in popup
-              return;
-            }
-            if (suggestions.length > 0) {
-              showAutocompleteSuggestions(suggestions, textarea, wordInfo);
-            } else {
-              hideAutocompletePopup();
-            }
-          } else {
-            hideAutocompletePopup();
-          }
-        }, 100); // 100ms debounce - faster response
+        scheduleAutocomplete();
       });
 
       // Add keydown event listener for navigation
@@ -759,9 +788,18 @@ app.registerExtension({
         }
       });
 
+      textarea.addEventListener("focus", () => {
+        scheduleAutocomplete(0);
+      });
+
+      textarea.addEventListener("click", () => {
+        scheduleAutocomplete(0);
+      });
+
       // Hide popup on blur (with delay to allow clicks)
       textarea.addEventListener("blur", () => {
         textarea._a1111_autocomplete_blur_timeout = setTimeout(() => {
+          queryVersion++;
           hideAutocompletePopup();
           textarea._a1111_autocomplete_blur_timeout = null;
         }, 200);
@@ -772,6 +810,7 @@ app.registerExtension({
         if (autocompletePopup && 
             !autocompletePopup.contains(e.target) && 
             e.target !== textarea) {
+          queryVersion++;
           hideAutocompletePopup();
         }
       };
@@ -779,6 +818,13 @@ app.registerExtension({
       
       // Store for cleanup
       node._outsideClickListener = outsideClickListener;
+      node._autocompleteCleanup = () => {
+        clearTimeout(debounceTimeout);
+        if (textarea._a1111_autocomplete_blur_timeout) {
+          clearTimeout(textarea._a1111_autocomplete_blur_timeout);
+          textarea._a1111_autocomplete_blur_timeout = null;
+        }
+      };
     };
 
     requestAnimationFrame(waitForTextarea);
@@ -793,6 +839,9 @@ app.registerExtension({
         document.removeEventListener("click", this._outsideClickListener);
         this._outsideClickListener = null;
       }
+
+      this._autocompleteCleanup?.();
+      this._autocompleteCleanup = null;
     };
   },
   onRemoved() {

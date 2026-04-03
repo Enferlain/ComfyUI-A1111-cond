@@ -29,6 +29,15 @@ app.registerExtension({
   name: "A1111PromptNode.ShowText",
   async beforeRegisterNodeDef(nodeType, nodeData, app) {
     if (nodeData.name === "A1111Prompt" || nodeData.name === "A1111PromptNegative") {
+      function resizeNode(node) {
+        requestAnimationFrame(() => {
+          const sz = node.computeSize();
+          if (sz[0] < node.size[0]) sz[0] = node.size[0];
+          node.onResize?.(sz);
+          app.graph.setDirtyCanvas(true, false);
+        });
+      }
+
       /**
        * Populate the node with a readonly text widget showing the prompt
        */
@@ -41,7 +50,8 @@ app.registerExtension({
         // Get the actual text value (could be an array)
         const textValue = Array.isArray(text) ? text[0] : text;
 
-        const currentText = this.widgets?.find((w) => w.name === "text")?.value || "";
+        const textWidget = this.widgets?.find((w) => w.name === "text");
+        const currentText = textWidget?.inputEl?.value ?? textWidget?.value ?? "";
         
         // Only show if the effective prompt is different from the input text
         // This avoids clutter when no expansion (TIPO, etc.) is happening
@@ -50,6 +60,8 @@ app.registerExtension({
             // Hide the widget if it exists but is no longer needed
             displayWidget.type = "converted-widget"; // Effectively hides it in ComfyUI
             if (displayWidget.inputEl) displayWidget.inputEl.style.display = "none";
+            displayWidget.value = "";
+            resizeNode(this);
           }
           return;
         }
@@ -77,53 +89,21 @@ app.registerExtension({
         if (displayWidget.inputEl) displayWidget.inputEl.style.display = "block";
         displayWidget.value = textValue;
 
-        // Resize node to fit the new widget content
-        requestAnimationFrame(() => {
-          const sz = this.computeSize();
-          if (sz[0] < this.size[0]) sz[0] = this.size[0];
-          if (sz[1] < this.size[1]) sz[1] = this.size[1];
-          this.onResize?.(sz);
-          app.graph.setDirtyCanvas(true, false);
-        });
+        resizeNode(this);
       }
 
       // Hook into onExecuted to display the prompt after execution
       const onExecuted = nodeType.prototype.onExecuted;
       nodeType.prototype.onExecuted = function (message) {
         onExecuted?.apply(this, arguments);
-        if (message?.text) {
-          populate.call(this, message.text);
-        }
+        populate.call(this, message?.text ?? "");
       };
 
-      // Store widget values during configure for workflow reload
-      const VALUES = Symbol();
-      const configure = nodeType.prototype.configure;
-      nodeType.prototype.configure = function () {
-        this[VALUES] = arguments[0]?.widgets_values;
-        return configure?.apply(this, arguments);
-      };
-
-      // Restore display widget on workflow load
       const onConfigure = nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure = function () {
         onConfigure?.apply(this, arguments);
-        const widgets_values = this[VALUES];
-        // Look for stored prompt display value
-        if (widgets_values?.length > 1) {
-          requestAnimationFrame(() => {
-            // The display widget value might be stored after the main text widget
-            const displayValue = widgets_values.find(
-              (v) =>
-                typeof v === "string" &&
-                v.length > 0 &&
-                this.widgets?.find((w) => w.name === "text")?.value !== v
-            );
-            if (displayValue) {
-              populate.call(this, [displayValue]);
-            }
-          });
-        }
+        // Preview text should reflect the latest execution only, not restored widget state.
+        requestAnimationFrame(() => populate.call(this, ""));
       };
     }
   },
@@ -288,13 +268,32 @@ app.registerExtension({
     nodeType.prototype.onRemoved = function () {
       if (onRemoved) onRemoved.apply(this, arguments);
 
-      // Disconnect observer to prevent leaks
+      if (this._boundaryTokenTimeout) {
+        clearTimeout(this._boundaryTokenTimeout);
+        this._boundaryTokenTimeout = null;
+      }
+
+      const textarea = this.widgets?.find((w) => w.name === "text")?.inputEl;
+      if (textarea && this._boundaryInputHandler) {
+        textarea.removeEventListener("input", this._boundaryInputHandler);
+        this._boundaryInputHandler = null;
+      }
+
+      if (textarea && this._boundaryFocusHandler) {
+        textarea.removeEventListener("focus", this._boundaryFocusHandler);
+        this._boundaryFocusHandler = null;
+      }
+
+      if (textarea && this._boundaryScrollHandler) {
+        textarea.removeEventListener("scroll", this._boundaryScrollHandler);
+        this._boundaryScrollHandler = null;
+      }
+
       if (this._boundaryObserver) {
         this._boundaryObserver.disconnect();
         this._boundaryObserver = null;
       }
 
-      // Cleanup overlay DOM
       if (this._overlayContainer && this._overlayContainer.parentNode) {
         this._overlayContainer.parentNode.removeChild(this._overlayContainer);
         this._overlayContainer = null;
@@ -317,11 +316,112 @@ app.registerExtension({
     // Create boundary marker overlay
     let overlayContainer = null;
     let mirrorDiv = null;
+    let activeTextarea = null;
+    let tokenUpdateTimeout = null;
+    let handleInput = null;
+    let handleFocus = null;
+
+    const cleanupOverlay = () => {
+      if (node._boundaryBoundTextarea && node._boundaryInputHandler) {
+        node._boundaryBoundTextarea.removeEventListener(
+          "input",
+          node._boundaryInputHandler
+        );
+      }
+
+      if (node._boundaryBoundTextarea && node._boundaryFocusHandler) {
+        node._boundaryBoundTextarea.removeEventListener(
+          "focus",
+          node._boundaryFocusHandler
+        );
+      }
+
+      if (activeTextarea && node._boundaryScrollHandler) {
+        activeTextarea.removeEventListener("scroll", node._boundaryScrollHandler);
+        node._boundaryScrollHandler = null;
+      }
+
+      node._boundaryBoundTextarea = null;
+      node._boundaryInputHandler = null;
+      node._boundaryFocusHandler = null;
+
+      if (node._boundaryObserver) {
+        node._boundaryObserver.disconnect();
+        node._boundaryObserver = null;
+      }
+
+      if (overlayContainer?.parentNode) {
+        overlayContainer.parentNode.removeChild(overlayContainer);
+      }
+
+      overlayContainer = null;
+      mirrorDiv = null;
+      activeTextarea = null;
+      node._overlayContainer = null;
+    };
+
+    const bindTextarea = (textarea) => {
+      if (!textarea || node._boundaryBoundTextarea === textarea) return;
+
+      if (node._boundaryBoundTextarea && node._boundaryInputHandler) {
+        node._boundaryBoundTextarea.removeEventListener(
+          "input",
+          node._boundaryInputHandler
+        );
+      }
+
+      if (node._boundaryBoundTextarea && node._boundaryFocusHandler) {
+        node._boundaryBoundTextarea.removeEventListener(
+          "focus",
+          node._boundaryFocusHandler
+        );
+      }
+
+      if (!handleInput) {
+        handleInput = () => {
+          updateTokenCount(textWidget.inputEl?.value || "");
+          requestAnimationFrame(updateBoundaryMarkers);
+        };
+      }
+
+      if (!handleFocus) {
+        handleFocus = () => {
+          ensureOverlay();
+          requestAnimationFrame(updateBoundaryMarkers);
+        };
+      }
+
+      textarea.addEventListener("input", handleInput);
+      textarea.addEventListener("focus", handleFocus);
+      node._boundaryInputHandler = handleInput;
+      node._boundaryFocusHandler = handleFocus;
+      node._boundaryBoundTextarea = textarea;
+    };
+
+    const ensureOverlay = () => {
+      const textarea = textWidget.inputEl;
+      if (!textarea) return false;
+
+      if (
+        textarea !== activeTextarea ||
+        !overlayContainer ||
+        !overlayContainer.isConnected ||
+        !mirrorDiv
+      ) {
+        createOverlay();
+      }
+
+      bindTextarea(textarea);
+
+      return Boolean(mirrorDiv);
+    };
 
     const createOverlay = () => {
       if (!textWidget.inputEl) return;
 
       const textarea = textWidget.inputEl;
+      cleanupOverlay();
+      activeTextarea = textarea;
 
       // Create container for the overlay
       overlayContainer = document.createElement("div");
@@ -354,6 +454,7 @@ app.registerExtension({
       overlayContainer.appendChild(mirrorDiv);
 
       // Insert overlay before textarea so it appears behind
+      if (!textarea.parentNode) return;
       textarea.parentNode.style.position = "relative";
       textarea.parentNode.insertBefore(overlayContainer, textarea);
       node._overlayContainer = overlayContainer;
@@ -395,27 +496,26 @@ app.registerExtension({
       copyStyles();
 
       // Sync scroll position
-      textarea.addEventListener("scroll", () => {
+      const syncScroll = () => {
+        if (!mirrorDiv) return;
         mirrorDiv.scrollTop = textarea.scrollTop;
         mirrorDiv.scrollLeft = textarea.scrollLeft;
-      });
+      };
+      textarea.addEventListener("scroll", syncScroll);
+      node._boundaryScrollHandler = syncScroll;
 
       // Use ResizeObserver to keep mirror synced with textarea size
-      if (node._boundaryObserver) {
-        node._boundaryObserver.disconnect();
-      }
       const observer = new ResizeObserver(() => {
         copyStyles();
         // Force re-sync of scroll after resize as content might reflow
-        mirrorDiv.scrollTop = textarea.scrollTop;
-        mirrorDiv.scrollLeft = textarea.scrollLeft;
+        syncScroll();
       });
       observer.observe(textarea);
       node._boundaryObserver = observer;
     };
 
     const updateBoundaryMarkers = () => {
-      if (!mirrorDiv || !textWidget.inputEl) return;
+      if (!ensureOverlay()) return;
 
       const text = textWidget.inputEl.value || "";
       const boundaries = node._tokenInfo?.boundaries || [];
@@ -476,10 +576,9 @@ app.registerExtension({
       mirrorDiv.innerHTML = html;
     };
 
-    let timeout;
     const updateTokenCount = async (text) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(async () => {
+      clearTimeout(tokenUpdateTimeout);
+      tokenUpdateTimeout = setTimeout(async () => {
         try {
           const response = await fetch("/a1111_prompt/tokenize", {
             method: "POST",
@@ -496,25 +595,30 @@ app.registerExtension({
           node.setDirtyCanvas(true, false);
 
           // Update boundary markers
-          requestAnimationFrame(updateBoundaryMarkers);
+          requestAnimationFrame(() => {
+            updateBoundaryMarkers();
+          });
         } catch (e) {
           // Silently ignore errors, just keep old count
         }
       }, 300); // 300ms debounce
+      node._boundaryTokenTimeout = tokenUpdateTimeout;
     };
 
     // Hook into widget callback for text changes
     const origCallback = textWidget.callback;
     textWidget.callback = function (value) {
       origCallback?.apply(this, arguments);
-      updateTokenCount(value);
+      updateTokenCount(
+        typeof value === "string" ? value : textWidget.inputEl?.value || ""
+      );
     };
 
     // Create overlay when the textarea is available
     const waitForTextarea = () => {
       if (textWidget.inputEl) {
-        createOverlay();
-        updateTokenCount(textWidget.value || "");
+        ensureOverlay();
+        updateTokenCount(textWidget.inputEl.value || textWidget.value || "");
       } else {
         requestAnimationFrame(waitForTextarea);
       }

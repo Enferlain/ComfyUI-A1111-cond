@@ -8,7 +8,6 @@ Provides tag autocomplete functionality with support for:
 """
 
 import csv
-import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -34,8 +33,9 @@ TAG_TYPES = {
 
 # Get the data directory path
 DATA_DIR = Path(__file__).parent.parent / "data" / "tags"
+WILDCARDS_DIR = Path(__file__).parent.parent / "data" / "wildcards"
 
-# Default tag file to use if not specified
+# Default tag file to use if not specified (danbooru.csv is default)
 DEFAULT_TAG_FILE = "danbooru.csv"
 
 
@@ -58,6 +58,26 @@ class TagEntry:
             "type": self.type,
             "count": self.count,
             "aliases": self.aliases,
+            "kind": "tag",
+        }
+
+
+class WildcardEntry:
+    """Represents a single wildcard file available for completion."""
+
+    __slots__ = ("name", "kind", "search_text")
+
+    def __init__(self, name: str, kind: str):
+        self.name = name
+        self.kind = kind
+        self.search_text = name.lower()
+
+    def to_dict(self) -> Dict:
+        return {
+            "name": self.name,
+            "kind": self.kind,
+            "completion": f"__{self.name}__",
+            "meta": "Wildcard folder" if self.kind == "wildcard_folder" else "Wildcard file",
         }
 
 
@@ -238,13 +258,183 @@ class TagDatabase:
         return output
 
 
+class WildcardDatabase:
+    """In-memory wildcard list with simple fuzzy scoring."""
+
+    def __init__(self, wildcards_dir: Path):
+        self._wildcards_dir = wildcards_dir
+        self._entries: List[WildcardEntry] = []
+        self._entry_map: Dict[str, List[WildcardEntry]] = {}
+        self._loaded = False
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._loaded
+
+    @property
+    def wildcard_count(self) -> int:
+        return len(self._entries)
+
+    def load(self) -> int:
+        self._entries = []
+        self._entry_map = {}
+
+        if not self._wildcards_dir.exists():
+            self._loaded = True
+            return 0
+
+        folder_names = set()
+        for path in self._wildcards_dir.rglob("*.txt"):
+            relative = path.relative_to(self._wildcards_dir).with_suffix("")
+            relative_name = relative.as_posix()
+            self._entries.append(WildcardEntry(relative_name, "wildcard_file"))
+
+            parts = relative.parts[:-1]
+            current_parts = []
+            for part in parts:
+                current_parts.append(part)
+                folder_names.add("/".join(current_parts))
+
+        for folder_name in folder_names:
+            self._entries.append(WildcardEntry(folder_name, "wildcard_folder"))
+
+        self._entries.sort(
+            key=lambda entry: (
+                entry.search_text,
+                0 if entry.kind == "wildcard_folder" else 1,
+                len(entry.name),
+            )
+        )
+        for entry in self._entries:
+            self._entry_map.setdefault(entry.search_text, []).append(entry)
+        self._loaded = True
+        return len(self._entries)
+
+    def _normalize_query(self, query: str) -> str:
+        normalized = str(query or "").strip().lower()
+        if normalized.startswith("__"):
+            normalized = normalized[2:]
+        if normalized.endswith("__"):
+            normalized = normalized[:-2]
+        return normalized
+
+    def _resolve_entry(self, wildcard_name: str) -> Optional[WildcardEntry]:
+        normalized = self._normalize_query(wildcard_name)
+        if not normalized:
+            return None
+
+        candidates = self._entry_map.get(normalized, [])
+        if not candidates:
+            return None
+
+        for kind in ("wildcard_folder", "wildcard_file"):
+            for entry in candidates:
+                if entry.kind == kind:
+                    return entry
+        return candidates[0]
+
+    def search(self, query: str, limit: int = 20) -> List[Dict]:
+        if not self._loaded:
+            self.load()
+
+        normalized = self._normalize_query(query)
+        if len(normalized) > 255:
+            return []
+
+        if not normalized:
+            return [entry.to_dict() for entry in self._entries[:limit]]
+
+        scored: List[Tuple[int, WildcardEntry]] = []
+        for entry in self._entries:
+            if normalized == entry.search_text:
+                score = 3
+            elif entry.search_text.startswith(normalized):
+                score = 2
+            elif normalized in entry.search_text:
+                score = 1
+            else:
+                continue
+            scored.append((score, entry))
+
+        scored.sort(
+            key=lambda item: (
+                -item[0],
+                0 if item[1].kind == "wildcard_folder" else 1,
+                len(item[1].name),
+                item[1].search_text,
+            )
+        )
+        return [entry.to_dict() for _, entry in scored[:limit]]
+
+    def get_contents(
+        self, wildcard_name: str, content_query: str = "", limit: int = 50
+    ) -> List[Dict]:
+        if not self._loaded:
+            self.load()
+
+        entry = self._resolve_entry(wildcard_name)
+        if entry is None:
+            return []
+
+        if entry.kind == "wildcard_folder":
+            prefix = f"{entry.name}/"
+            normalized_query = str(content_query or "").strip().lower()
+            descendants = []
+
+            for candidate in self._entries:
+                if candidate.name == entry.name or not candidate.name.startswith(prefix):
+                    continue
+                remainder = candidate.name[len(prefix) :]
+                if normalized_query and normalized_query not in remainder.lower():
+                    continue
+                descendants.append(candidate.to_dict())
+                if len(descendants) >= limit:
+                    break
+
+            return descendants
+
+        wildcard_path = self._wildcards_dir.joinpath(*entry.name.split("/")).with_suffix(
+            ".txt"
+        )
+        if not wildcard_path.exists():
+            return []
+
+        normalized_query = str(content_query or "").strip().lower()
+        results = []
+        with open(wildcard_path, "r", encoding="utf-8", errors="replace") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if normalized_query and normalized_query not in line.lower():
+                    continue
+                results.append(
+                    {
+                        "name": line,
+                        "kind": "wildcard_content",
+                        "completion": line,
+                        "meta": entry.name,
+                    }
+                )
+                if len(results) >= limit:
+                    break
+
+        return results
+
+
 # Global database instance (lazy loaded)
 _database = TagDatabase()
+_wildcard_database = WildcardDatabase(WILDCARDS_DIR)
 
 
 def get_database() -> TagDatabase:
     """Get the global tag database instance."""
     return _database
+
+
+def get_wildcard_database() -> WildcardDatabase:
+    """Get the global wildcard database instance."""
+    return _wildcard_database
 
 
 def ensure_database_loaded(
@@ -343,7 +533,9 @@ if _HAS_SERVER and PromptServer:
             return web.json_response(
                 {"results": [], "tag_count": 0, "error": "Query too long"}
             )
-        limit = min(data.get("limit", 20), 100)  # Cap at 100
+        mode = str(data.get("mode", "tag")).lower()
+        limit_cap = 500 if mode in {"wildcard", "wildcard_contents"} else 100
+        limit = min(data.get("limit", 20), limit_cap)
         tag_file = data.get(
             "tag_file"
         )  # Will use DEFAULT_TAG_FILE in ensure_database_loaded if None
@@ -359,6 +551,31 @@ if _HAS_SERVER and PromptServer:
 
         search_aliases = data.get("search_aliases", True)
 
+        if mode == "wildcard":
+            db = get_wildcard_database()
+            results = db.search(query, limit=limit)
+            return web.json_response(
+                {"results": results, "tag_count": db.wildcard_count, "mode": "wildcard"}
+            )
+
+        if mode == "wildcard_contents":
+            db = get_wildcard_database()
+            wildcard_name = str(data.get("wildcard_name", ""))
+            content_query = str(data.get("content_query", ""))
+            results = db.get_contents(
+                wildcard_name=wildcard_name,
+                content_query=content_query,
+                limit=limit,
+            )
+            return web.json_response(
+                {
+                    "results": results,
+                    "tag_count": len(results),
+                    "mode": "wildcard_contents",
+                    "wildcard_name": wildcard_name,
+                }
+            )
+
         # Ensure database is loaded
         db = ensure_database_loaded(
             tag_file or DEFAULT_TAG_FILE, extra_files=extra_files
@@ -367,7 +584,9 @@ if _HAS_SERVER and PromptServer:
         # Perform search
         results = db.search(query, limit=limit, search_aliases=search_aliases)
 
-        return web.json_response({"results": results, "tag_count": db.tag_count})
+        return web.json_response(
+            {"results": results, "tag_count": db.tag_count, "mode": "tag"}
+        )
 
     @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/status")
     async def autocomplete_status(request):

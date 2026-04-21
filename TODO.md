@@ -39,6 +39,15 @@
 - [x] Frequency sorting with usage tracking
 - [x] Theme support (respects ComfyUI color scheme)
 
+### Wildcards (2026-04-21)
+
+- [x] `__wildcard__` syntax expansion
+- [x] Nested wildcards
+- [x] Dynamic prompt syntax support inside wildcard content (`{a|b}`, `{1-2$$a|b|c}`, weighted picks)
+- [x] Wildcard autocomplete when typing `__`
+- [x] Wildcard folder + file suggestions with second-stage content drill-down
+- [x] Wildcard prompt spacing cleanup after optional/empty expansions
+
 ---
 
 ## 🔥 High Priority
@@ -62,6 +71,12 @@
 - [ ] Configuration UI for tag file selection
 - [ ] Chants/prompt presets (prompt library/bookmarks)
 - [ ] Wiki links for tag documentation
+- [ ] Source-aware autocomplete results
+  - Load multiple tag sources without flattening away source identity
+  - Preserve per-source aliases instead of using one global alias map
+  - Show prepended source badge/icon in the popup (e.g. Danbooru, e621)
+  - Handle duplicate canonical tags by showing one result per source when needed
+- [ ] Check if usage count is recorded properly
 - [ ] Visual distinction between different databases (e.g., Danbooru vs e621 tags)
   - Consider: badge/icon, subtle background color, or source indicator
   - Useful when loading multiple databases simultaneously
@@ -69,10 +84,13 @@
 
 ### Wildcard Support
 
-- [ ] `__wildcard__` syntax expansion
-- [ ] Nested wildcards
+- [x] `__wildcard__` syntax expansion
+- [x] Nested wildcards
 - [ ] Wildcard file browser/picker
+  - Current state: autocomplete can browse wildcard folders/files and drill into file contents
 - [ ] Preview what wildcards will expand to
+- [ ] Toggle for static wildcards (same seed same wildcard result)
+- [ ] Toggle for history for what wildcards have been used so you don't get the same one too soon
 
 ---
 
@@ -200,3 +218,4 @@ A1111_Prompt_Node/
 - [ ] Export to A1111-compatible format
 - [ ] Prompt history (undo/redo)
 - [ ] Multi-line prompt editor (full-screen mode)
+- [ ] Wildcard/tags having fast/performant thumbnails on hover in autocomplete.js (needs autocompelte.js package split)

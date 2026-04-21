@@ -14,7 +14,7 @@ import logging
 import re
 from collections import deque
 import comfy.model_management as model_management
-from ..parser import get_prompt_schedule
+from ..parser import expand_wildcards, get_prompt_schedule
 from ..hooks import create_step_schedule_cond
 
 logger = logging.getLogger("A1111PromptNode")
@@ -85,6 +85,11 @@ class A1111PromptNode:
             logger.info("[A1111 Prompt] ========== ENCODE START ==========")
             logger.info(f"[A1111 Prompt] Node ID: {unique_id}")
 
+        expanded_text = expand_wildcards(text)
+
+        if debug and expanded_text != text:
+            logger.info(f"[A1111 Prompt] Wildcards expanded to: {expanded_text}")
+
         # Auto-detect steps from workflow graph
         steps = None
         if prompt is not None and unique_id is not None:
@@ -106,7 +111,7 @@ class A1111PromptNode:
             )
 
         # Check if prompt uses step-based syntax (integers without decimals)
-        uses_step_syntax = self._uses_step_based_syntax(text, debug)
+        uses_step_syntax = self._uses_step_based_syntax(expanded_text, debug)
         if debug:
             logger.info(
                 f"[A1111 Prompt] Syntax detection: {'step-based' if uses_step_syntax else 'percentage-based'}"
@@ -136,6 +141,12 @@ class A1111PromptNode:
                 if len(text) > 100
                 else f"[A1111 Prompt] Input text: {text}"
             )
+            if expanded_text != text:
+                logger.info(
+                    f"[A1111 Prompt] Effective text: {expanded_text[:100]}..."
+                    if len(expanded_text) > 100
+                    else f"[A1111 Prompt] Effective text: {expanded_text}"
+                )
             logger.info(f"[A1111 Prompt] Model: {'SDXL' if is_sdxl else 'SD1.5'}")
             logger.info(
                 f"[A1111 Prompt] Normalization: {'ON' if normalization else 'OFF'}"
@@ -143,7 +154,7 @@ class A1111PromptNode:
 
         if debug:
             logger.info(f"[A1111 Prompt] Parsing schedule with {parse_steps} steps...")
-        schedule = get_prompt_schedule(text, parse_steps)
+        schedule = get_prompt_schedule(expanded_text, parse_steps)
         if debug:
             logger.info(f"[A1111 Prompt] Schedule generated: {len(schedule)} segments")
 
@@ -262,7 +273,7 @@ class A1111PromptNode:
                     "[A1111 Prompt] ========== ENCODE COMPLETE (static) =========="
                 )
             return {
-                "ui": {"text": [text]},
+                "ui": {"text": [expanded_text]},
                 "result": ([[cond, {"pooled_output": pooled}]],),
             }
 
@@ -405,7 +416,7 @@ class A1111PromptNode:
             logger.info(
                 "[A1111 Prompt] ========== ENCODE COMPLETE (scheduled) =========="
             )
-        return {"ui": {"text": [text]}, "result": (conditioning,)}
+        return {"ui": {"text": [expanded_text]}, "result": (conditioning,)}
 
     def _uses_step_based_syntax(self, text, debug=False):
         """

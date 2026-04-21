@@ -13,3 +13,5 @@ MIGRATION_GUIDE.md
 MODEL_WRAPPER_ANALYSIS.md
 REFACTOR_SUMMARY.md
 *.zip
+data/wildcards/*
+!data/wildcards/readme.md

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Wildcard Expansion**: Added A1111-style `__wildcard__` expansion for prompt and negative prompt nodes, including nested wildcard resolution from `data/wildcards`.
+- **Dynamic Prompt Support in Wildcards**: Added brace-style choice expansion inside wildcard content, including simple choices (`{a|b}`), ranged picks (`{1-2$$a|b|c}`), and weighted picks (`{20%a|b}`).
+- **Wildcard Autocomplete**: Added wildcard-aware autocomplete when typing `__`, with support for wildcard files, inferred folders, and second-stage file-content suggestions.
+- **Wildcard Documentation**: Updated README, TODO, and changelog notes to cover wildcard expansion, autocomplete flow, and current completion status.
+
+### Changed
+
+- **Expanded Prompt Preview**: Effective prompt output now reflects resolved wildcard expansion so executed prompt text is visible after generation.
+- **Wildcard Browsing UX**: Wildcard autocomplete now keeps the popup open after selecting a wildcard file and drills into either descendant entries or file contents.
+- **Wildcard Result Rendering**: Improved wildcard result styling in the autocomplete popup to make nested paths easier to scan.
+- **Prompt Cleanup**: Wildcard and dynamic prompt expansion now normalizes leftover spacing from optional empty branches so final prompts do not accumulate doubled spaces or messy comma spacing.
+- **Autocomplete Ranking**: Frequency sorting now uses a blended relevance model that keeps exact/prefix/contains match quality ahead of usage history, with logarithmic frequency scaling and a light recency boost.
+
+### Fixed
+
+- Fixed wildcard autocomplete result limits so large wildcard packs return substantially more matching entries.
+- Fixed wildcard expansion to resolve a1111-style wildcard packs that combine nested wildcard files with dynamic prompt syntax.
+- Fixed wildcard autocomplete usage stars being display-only; usage history now actually influences wildcard result ordering.
+
 ## [1.0.0] - 2026-02-02
 
 ### 🎉 Launch!

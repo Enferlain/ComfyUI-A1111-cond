@@ -10,7 +10,7 @@ prompt and logs an info message.
 """
 
 import logging
-from ..parser import get_prompt_schedule
+from ..parser import expand_wildcards, get_prompt_schedule
 from .prompt_node import A1111PromptNode
 
 logger = logging.getLogger("A1111PromptNode")
@@ -60,12 +60,14 @@ class A1111PromptNegative:
         if clip is None:
             raise RuntimeError("ERROR: clip input is None")
 
+        expanded_text = expand_wildcards(text)
+
         is_sdxl = hasattr(clip.cond_stage_model, "clip_l") and hasattr(
             clip.cond_stage_model, "clip_g"
         )
 
         # Parse the prompt schedule (use dummy steps as it's not supported for negative)
-        schedule = get_prompt_schedule(text, steps=20)
+        schedule = get_prompt_schedule(expanded_text, steps=20)
 
         # Check if scheduling/alternation was used
         if len(schedule) > 1:
@@ -84,6 +86,12 @@ class A1111PromptNegative:
                 if len(text) > 100
                 else f"[A1111 Prompt Negative] Input text: {text}"
             )
+            if expanded_text != text:
+                logger.info(
+                    f"[A1111 Prompt Negative] Effective text: {expanded_text[:100]}..."
+                    if len(expanded_text) > 100
+                    else f"[A1111 Prompt Negative] Effective text: {expanded_text}"
+                )
             logger.info(
                 f"[A1111 Prompt Negative] Model: {'SDXL' if is_sdxl else 'SD1.5'}"
             )
@@ -102,6 +110,6 @@ class A1111PromptNegative:
         )
 
         return {
-            "ui": {"text": [text]},
+            "ui": {"text": [expanded_text]},
             "result": ([[cond, {"pooled_output": pooled}]],),
         }

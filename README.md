@@ -30,7 +30,8 @@ pip install lark
 - **Direct Scaling (Anti-Burn)**: Uses `z * weight` instead of Comfy's interpolation, avoiding artifacts at high weights
 - **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
-- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it. Should use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to preserve weighting emphasis in the a1111 snytax.
+- **Wildcard support**: Resolves `__wildcard__` files from `data/wildcards`, including nested wildcard chains and dynamic prompt choices inside wildcard files
+- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it. Should use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to preserve weighting emphasis in the A1111 syntax.
 
 ### Token Counter
 
@@ -80,6 +81,30 @@ The node includes [**A1111-style tag autocomplete**](https://github.com/DominikD
 - Usage tracking: Tags you use often are prioritized in results
 - Quality tags: Automatically includes `extra-quality-tags.csv` for common quality/style tags
 - Theme-aware: Respects your ComfyUI color scheme
+
+### Wildcard Support
+
+The node supports **A1111-style wildcard files** stored in `data/wildcards/`.
+
+- **Basic syntax**: `__outfits__`
+- **Nested folders**: `__characters/anime__`
+- **Nested expansion**: wildcard files can reference other wildcard files
+- **Dynamic prompt choices inside wildcard files**:
+  - `{red|blue}`
+  - `{1-2$$ring|necklace|bracelet}`
+  - `{20%hat|scarf}`
+
+**Autocomplete integration:**
+
+- Type `__` to browse wildcard folders and files
+- Selecting a wildcard file inserts `__path/to/file__`
+- After selecting a wildcard file, the popup stays open and can show the file's contents for quick follow-up selection
+
+**Notes:**
+
+- Wildcard files are plain `.txt` files under `data/wildcards/`
+- Blank lines and `#` comment lines are ignored
+- Prompt spacing is normalized after expansion so optional empty branches do not leave doubled spaces behind
 
 **Available tag databases:**
 
@@ -202,6 +227,7 @@ This pack provides **two nodes**:
 
 - **Auto-detection**: The node detects steps from the downstream sampler. If no sampler is connected, step-based syntax (`[a:b:10]`) will raise an error.
 - **Flexibility**: Use percentage syntax (`[a:b:0.5]`) for the most portable prompts.
+- **Effective prompt preview**: When TIPO or wildcards expand the text, the node shows the resolved prompt in the UI so you can see what was actually encoded.
 
 ### A1111 Style Prompt (Negative)
 
@@ -247,7 +273,7 @@ artist name BREAK character name, wearing a hat
 # Step-based scheduling (with steps=28)
 [mountains:ocean:14] at sunset
 
-# Alternation (requires MODEL connected)
+# Alternation (no MODEL connection needed)
 1girl, [as109|fkey], detailed
 
 # Add element at specific step
@@ -313,7 +339,7 @@ The node's `INPUT_TYPES` exposes only `clip`, `text`, `normalization`, and `debu
 
 3. **Visual parity**: While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ due to architectural differences:
    - A1111 applies conditioning at the CFGDenoiser level (before model call)
-   - This node applies conditioning via model wrapper (during model call)
+   - This node applies conditioning through ComfyUI's hook system during sampling
 
 Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control exactly when alternation stops.
 

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] - 2026-04-22
 
 ### Added
 
@@ -27,6 +27,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed wildcard autocomplete result limits so large wildcard packs return substantially more matching entries.
 - Fixed wildcard expansion to resolve a1111-style wildcard packs that combine nested wildcard files with dynamic prompt syntax.
 - Fixed wildcard autocomplete usage stars being display-only; usage history now actually influences wildcard result ordering.
+
+## [Unreleased] - 2026-04-03
+
+### Added
+
+- **API Normalization**: The `autocomplete` API now robustly handles the `extra_files` parameter, coercing strings to lists and providing sensible defaults.
+- **Memory Management Refinements**:
+  - **Bounded Caching**: Implemented instance-level prompt encoding cache with strict enforcement during execution to prevent unbounded growth.
+  - **Internal Cleanup**: Added explicit tensor deletion in `hooks.py` to prevent accumulation.
+  - **Leak Prevention**: Refactored frontend extensions to properly disconnect `ResizeObserver` instances and remove global click listeners upon node removal.
+
+### Fixed
+
+- **Hotfixes & Stability**:
+  - **Backend**: Restored missing `transformers_dict` initialization in `hooks.py` to fix `AttributeError` crash.
+  - **Frontend**: Merged duplicate `nodeCreated` hooks in `autocomplete.js` to restore extension functionality.
+
+### Changed
+
+- **Performance Optimization**:
+  - **Shared Caching**: Implemented a structural result cache in `hooks.py` that persists across hook clones, critical for 2nd order samplers (DPM++ 2M, etc.).
+  - **GPU Pre-Allocation**: Moved all embeddings to the GPU during the encoding phase to eliminate device-transfer latency.
+  - **Zero-Allocation Hot-Path**: Reduced Python overhead to the absolute minimum for standard and scheduled runs.
+- **Log Management**: Silenced all verbose console logs (encoding progress, graph traversal, and hook execution) behind the `debug` flag.
+- **Stability & Determinism**: Fixed a regression in the identity check logic that caused intermittent "skipped swaps" and ensured perfect image consistency across all sampler types.
+- **Code Quality & PR Feedback**:
+  - **Exception Handling**: Moved verbose step-detection errors to a dedicated `StepCountRequiredError` class.
+  - **Memory Optimization**: Limited tensor padding to only the prompts used in the current generation, preventing global cache bloat.
+  - **Schedule Precision**: Implemented linear index scaling in `hooks.py` to ensure percentage-based schedules remain accurate even when sampler step counts vary from defaults.
+  - **Cache Key Robustness**: Updated encoding cache to use composite keys (CLIP identity + normalization), ensuring embeddings are never reused in incompatible contexts.
+  - **Improved Cache Management**: Refactored cache clearing to happen before execution loops, preventing data loss during multi-prompt runs.
+  - **UI Robustness**: Improved autocomplete error handling to correctly reset internal selection state upon backend failure.
 
 ## [1.0.0] - 2026-02-02
 

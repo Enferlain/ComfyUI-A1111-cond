@@ -14,19 +14,19 @@ pip install lark
 
 ### Positive prompt node
 
-![positive](assets\positive_node.png)
+![positive](assets/positive_node.png)
 
 ### Negative prompt node
 
-![negative](assets\negative_node.png)
+![negative](assets/negative_node.png)
 
 ### Autocomplete/Wildcards
 
-![wildcard](assets\wildcard_example.png)
+![wildcard](assets/wildcard_example.png)
 
 ### Full setup with optional TIPO support
 
-![tipo](assets\tipo_example.png))
+![tipo](assets/tipo_example.png)
 
 ### Core Features
 

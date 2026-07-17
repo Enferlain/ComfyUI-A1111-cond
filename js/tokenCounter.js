@@ -101,6 +101,14 @@ export function showTokenTooltip(node, mouseEvent, graphCanvas) {
     </div>
   `;
 
+  if (info.stats.estimated_from_wildcards) {
+    html += `
+      <div style="margin-bottom: 10px; padding: 8px; background: rgba(230, 126, 34, 0.15); border: 1px solid rgba(230, 126, 34, 0.45); border-radius: 4px; color: #f0b27a;">
+        Count uses the longest wildcard/dynamic prompt estimate.
+      </div>
+    `;
+  }
+
   // Colored tokens section
   html += `<div style="margin-bottom: 8px;"><strong>Tokens</strong></div>`;
   html += `<div style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; padding: 8px; background: var(--comfy-input-bg, #222); border-radius: 4px; line-height: 1.8;">`;

@@ -12,7 +12,15 @@ sys.modules["server"] = MagicMock()
 sys.modules["comfy"] = MagicMock()
 sys.modules["comfy.sd1_clip"] = MagicMock()
 
-from api.tokenize import strip_a1111_syntax
+from api.tokenize import _find_word_position, build_token_info, strip_a1111_syntax
+
+
+class FakeTokenizer:
+    def encode(self, word, add_special_tokens=False):
+        return [word]
+
+    def decode(self, token_ids):
+        return str(token_ids[0])
 
 
 class TestTokenizer(unittest.TestCase):
@@ -64,6 +72,45 @@ class TestTokenizer(unittest.TestCase):
         # Then [(red:1.2):green:0.5] -> red (len 3+tags removal) vs green (len 5)
         # Result should be "green" because "red" is len 3 and "green" is len 5
         self.assertEqual(strip_a1111_syntax("[(red:1.2):green:0.5]"), "green")
+
+    def test_boundary_position_uses_original_text(self):
+        text = "alpha (beautiful:1.2) beta"
+        self.assertEqual(
+            _find_word_position(text, "beautiful", 0, len(text), fallback=6),
+            text.index("beautiful"),
+        )
+        self.assertEqual(
+            _find_word_position(text, "missing", 0, len(text), fallback=6),
+            6,
+        )
+
+    def test_build_token_info_returns_all_chunk_boundaries(self):
+        text = " ".join(f"w{i}" for i in range(160))
+
+        info = build_token_info(text, text, FakeTokenizer())
+
+        self.assertEqual(info["sequences"], [75, 75, 10])
+        chunk_boundaries = [
+            boundary for boundary in info["boundaries"] if boundary["type"] == "chunk"
+        ]
+        self.assertEqual(len(chunk_boundaries), 2)
+        self.assertEqual(chunk_boundaries[0]["to_chunk"], 1)
+        self.assertEqual(chunk_boundaries[1]["to_chunk"], 2)
+        self.assertLess(chunk_boundaries[0]["char_pos"], chunk_boundaries[1]["char_pos"])
+
+    def test_estimated_wildcard_count_keeps_approximate_boundaries(self):
+        text = "prefix __wildcard__ suffix"
+        wildcard_expansion = " ".join(f"choice{i}" for i in range(80))
+        counting_text = f"prefix {wildcard_expansion} suffix"
+
+        info = build_token_info(text, counting_text, FakeTokenizer())
+
+        self.assertEqual(info["sequences"], [75, 7])
+        self.assertTrue(info["stats"]["estimated_from_wildcards"])
+        self.assertEqual(len(info["boundaries"]), 1)
+        self.assertTrue(info["boundaries"][0]["estimated"])
+        self.assertGreaterEqual(info["boundaries"][0]["char_pos"], 0)
+        self.assertLessEqual(info["boundaries"][0]["char_pos"], len(text))
 
 
 if __name__ == "__main__":

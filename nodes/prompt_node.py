@@ -16,6 +16,7 @@ from collections import deque
 import comfy.model_management as model_management
 from ..parser import expand_wildcards, get_prompt_schedule
 from ..hooks import create_step_schedule_cond
+from ..metadata import record_prompt_metadata
 
 logger = logging.getLogger("A1111PromptNode")
 
@@ -60,6 +61,7 @@ class A1111PromptNode:
             "hidden": {
                 "prompt": "PROMPT",
                 "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
             },
         }
 
@@ -70,7 +72,14 @@ class A1111PromptNode:
     OUTPUT_NODE = True
 
     def encode(
-        self, clip, text, normalization=False, debug=False, prompt=None, unique_id=None
+        self,
+        clip,
+        text,
+        normalization=False,
+        debug=False,
+        prompt=None,
+        unique_id=None,
+        extra_pnginfo=None,
     ):
         """
         Main encode function - A1111 style with step-based scheduling.
@@ -86,6 +95,13 @@ class A1111PromptNode:
             logger.info(f"[A1111 Prompt] Node ID: {unique_id}")
 
         expanded_text = expand_wildcards(text)
+        record_prompt_metadata(
+            extra_pnginfo,
+            unique_id,
+            "A1111Prompt",
+            text,
+            expanded_text,
+        )
 
         if debug and expanded_text != text:
             logger.info(f"[A1111 Prompt] Wildcards expanded to: {expanded_text}")

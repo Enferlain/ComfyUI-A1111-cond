@@ -59,6 +59,11 @@ class TestAutocomplete(unittest.TestCase):
         results = self.db.search(long_query)
         self.assertEqual(len(results), 0)
 
+    def test_search_coerces_unusual_inputs(self):
+        self.assertEqual(self.db.search(["1girl"]), [])
+        self.assertEqual(self.db.search("1girl", limit="bad"), self.db.search("1girl"))
+        self.assertEqual(self.db.search("1girl", limit=-5), [])
+
 
 class TestWildcardAutocomplete(unittest.TestCase):
     def setUp(self):
@@ -89,6 +94,25 @@ class TestWildcardAutocomplete(unittest.TestCase):
         self.assertEqual(results[0]["completion"], "__characters__")
         self.assertEqual(results[0]["kind"], "wildcard_folder")
 
+    def test_nested_wildcard_completion_uses_leaf_name(self):
+        results = self.db.search("__hats", limit=10)
+        self.assertEqual(results[0]["name"], "characters/accessories/hats")
+        self.assertEqual(results[0]["leaf_name"], "hats")
+        self.assertEqual(results[0]["completion"], "__hats__")
+
+    def test_duplicate_leaf_completion_uses_full_path(self):
+        (self.wildcards_dir / "props").mkdir(parents=True, exist_ok=True)
+        (self.wildcards_dir / "props" / "hats.txt").write_text("helmet\n", encoding="utf-8")
+        self.db.load()
+
+        results = self.db.search("__hats", limit=10)
+        completions = {result["name"]: result["completion"] for result in results}
+        self.assertEqual(
+            completions["characters/accessories/hats"],
+            "__characters/accessories/hats__",
+        )
+        self.assertEqual(completions["props/hats"], "__props/hats__")
+
     def test_wildcard_contents_search(self):
         results = self.db.get_contents("characters/anime", limit=10)
         self.assertEqual(len(results), 1)
@@ -105,6 +129,13 @@ class TestWildcardAutocomplete(unittest.TestCase):
             result for result in results if result["name"] == "characters/accessories"
         )
         self.assertEqual(folder_entry["kind"], "wildcard_folder")
+
+    def test_wildcard_limits_are_coerced(self):
+        self.assertEqual(self.db.search("__", limit=-1), [])
+        self.assertEqual(
+            self.db.get_contents("characters", limit="bad")[0]["name"],
+            "characters/accessories",
+        )
 
 
 if __name__ == "__main__":

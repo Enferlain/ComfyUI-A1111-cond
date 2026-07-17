@@ -7,10 +7,32 @@ Uses word-by-word tokenization with manual position tracking.
 
 from aiohttp import web
 import server
+import logging
 import re
+
+try:
+    from ..parser.wildcards import expand_wildcards_for_token_count
+except ImportError:
+    from parser.wildcards import expand_wildcards_for_token_count
 
 # Lazy-loaded tokenizer instance
 _tokenizer = None
+logger = logging.getLogger("A1111PromptNode")
+
+
+def _coerce_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _find_word_position(source: str, word: str, start: int, end: int, fallback: int):
+    found = source.find(word, start, end)
+    if found == -1:
+        return fallback
+    return found
 
 
 def get_tokenizer():
@@ -21,6 +43,14 @@ def get_tokenizer():
 
         _tokenizer = SDTokenizer()
     return _tokenizer
+
+
+def _encode_word(hf_tokenizer, word: str):
+    return hf_tokenizer.encode(word, add_special_tokens=False)
+
+
+def _decode_token(hf_tokenizer, token_id):
+    return hf_tokenizer.decode([token_id])
 
 
 def strip_a1111_syntax(text: str) -> str:
@@ -110,6 +140,164 @@ def strip_a1111_syntax(text: str) -> str:
     return text.strip()
 
 
+def build_token_info(text: str, counting_text: str, hf_tokenizer):
+    is_estimated = counting_text != text
+
+    # Split by BREAK first (matching parser.py behavior)
+    break_pattern = r"\s*\bBREAK\b\s*"
+    break_matches = list(re.finditer(break_pattern, counting_text))
+    break_segments = re.split(break_pattern, counting_text)
+
+    sequences = []
+    boundaries = []
+    tokens_detail = []  # Per-token info: [{text, id, chunk_idx}, ...]
+
+    # Track position in token-counting text and display/original text separately.
+    current_text_offset = 0
+    display_search_start = 0
+    current_chunk_idx = 0
+
+    for seg_idx, segment in enumerate(break_segments):
+        # Find where this segment starts in the counting text.
+        if segment:
+            segment_start = counting_text.find(segment, current_text_offset)
+        else:
+            segment_start = current_text_offset
+
+        leading_trim = len(segment) - len(segment.lstrip())
+        segment_text_start = segment_start + leading_trim
+        segment_text = segment.strip()
+
+        if not segment_text:
+            sequences.append(0)
+            current_chunk_idx += 1
+        else:
+            clean_segment = strip_a1111_syntax(segment_text)
+
+            if not clean_segment:
+                sequences.append(0)
+                current_chunk_idx += 1
+                current_text_offset = segment_start + len(segment)
+                continue
+
+            word_pattern = r"(\S+)"
+            words_with_pos = []
+
+            for match in re.finditer(word_pattern, clean_segment):
+                word = match.group(1)
+                word_start = match.start()
+                word_end = match.end()
+                words_with_pos.append((word, word_start, word_end))
+
+            chunk_size = 75
+            current_chunk_tokens = 0
+            chunk_sequences = []
+            counting_search_start = segment_text_start
+            segment_end = segment_start + len(segment)
+
+            for word, word_start_rel, _word_end_rel in words_with_pos:
+                word_tokens = _encode_word(hf_tokenizer, word)
+                word_token_count = len(word_tokens)
+
+                if is_estimated:
+                    found = text.find(word, display_search_start)
+                    if found != -1:
+                        original_word_start = found
+                        display_search_start = found + len(word)
+                    else:
+                        original_word_start = min(display_search_start, len(text))
+                else:
+                    # Map the cleaned word back into the original segment. This keeps
+                    # boundary markers aligned after stripping A1111 syntax.
+                    fallback_pos = segment_text_start + word_start_rel
+                    original_word_start = _find_word_position(
+                        counting_text,
+                        word,
+                        counting_search_start,
+                        segment_end,
+                        fallback_pos,
+                    )
+                    counting_search_start = max(
+                        counting_search_start, original_word_start + len(word)
+                    )
+
+                if (
+                    current_chunk_tokens + word_token_count > chunk_size
+                    and current_chunk_tokens > 0
+                ):
+                    chunk_sequences.append(current_chunk_tokens)
+                    boundaries.append(
+                        {
+                            "char_pos": original_word_start,
+                            "type": "chunk",
+                            "from_chunk": current_chunk_idx,
+                            "to_chunk": current_chunk_idx + 1,
+                            "estimated": is_estimated,
+                        }
+                    )
+
+                    current_chunk_tokens = 0
+                    current_chunk_idx += 1
+
+                for token_id in word_tokens:
+                    tokens_detail.append(
+                        {
+                            "text": _decode_token(hf_tokenizer, token_id),
+                            "id": token_id,
+                            "chunk": current_chunk_idx,
+                        }
+                    )
+
+                current_chunk_tokens += word_token_count
+
+            if current_chunk_tokens > 0:
+                chunk_sequences.append(current_chunk_tokens)
+
+            sequences.extend(chunk_sequences if chunk_sequences else [0])
+            current_chunk_idx += 1
+
+        current_text_offset = segment_start + len(segment)
+
+        if seg_idx < len(break_matches):
+            break_char_pos = break_matches[seg_idx].start()
+            if is_estimated:
+                break_char_pos = min(display_search_start, len(text))
+            boundaries.append(
+                {
+                    "char_pos": break_char_pos,
+                    "type": "break",
+                    "from_chunk": current_chunk_idx - 1,
+                    "to_chunk": current_chunk_idx,
+                    "estimated": is_estimated,
+                }
+            )
+            tokens_detail.append(
+                {
+                    "text": "BREAK",
+                    "id": None,
+                    "chunk": current_chunk_idx - 1,
+                    "is_break": True,
+                }
+            )
+
+    if not sequences:
+        sequences = [0]
+
+    return {
+        "sequences": sequences,
+        "boundaries": boundaries,
+        "tokens": tokens_detail,
+        "stats": {
+            "total_tokens": sum(sequences),
+            "chunks": len(sequences),
+            "words": len(text.split()),
+            "characters": len(text),
+            "estimated_from_wildcards": is_estimated,
+        },
+        "estimated_text": counting_text if is_estimated else None,
+    }
+
+
 @server.PromptServer.instance.routes.post("/a1111_prompt/tokenize")
 async def tokenize_prompt(request):
     """
@@ -119,145 +307,50 @@ async def tokenize_prompt(request):
     where boundaries fall using word-by-word tokenization.
     BREAK forces a new sequence (matching A1111/parser behavior).
     """
-    data = await request.json()
-    text = data.get("text", "")
-
     try:
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response(
+                {"error": "Invalid JSON", "sequences": None, "boundaries": None},
+                status=400,
+            )
+
+        if not isinstance(data, dict):
+            return web.json_response(
+                {
+                    "error": "Request body must be a JSON object",
+                    "sequences": None,
+                    "boundaries": None,
+                },
+                status=400,
+            )
+
+        text = _coerce_text(data.get("text", ""))
+
         tokenizer = get_tokenizer()
         hf_tokenizer = tokenizer.tokenizer  # Access underlying HuggingFace tokenizer
 
-        # Split by BREAK first (matching parser.py behavior)
-        break_pattern = r"\s*\bBREAK\b\s*"
-        break_matches = list(re.finditer(break_pattern, text))
-        break_segments = re.split(break_pattern, text)
+        def score_token_count(candidate: str) -> int:
+            clean_candidate = strip_a1111_syntax(candidate)
+            if not clean_candidate:
+                return 0
+            return len(hf_tokenizer.encode(clean_candidate, add_special_tokens=False))
 
-        sequences = []
-        boundaries = []
-        tokens_detail = []  # Per-token info: [{text, id, chunk_idx}, ...]
+        try:
+            counting_text = expand_wildcards_for_token_count(
+                text,
+                scorer=score_token_count,
+            )
+        except Exception as exc:
+            logger.warning(
+                "[A1111 Prompt] Wildcard token estimate failed; falling back to literal token count: %s",
+                exc,
+            )
+            counting_text = text
+        is_estimated = counting_text != text
 
-        # Track position in original text
-        current_text_offset = 0
-        current_chunk_idx = 0
-
-        for seg_idx, segment in enumerate(break_segments):
-            # Find where this segment starts in the original text
-            if segment:
-                segment_start = text.find(segment, current_text_offset)
-            else:
-                segment_start = current_text_offset
-
-            segment_text = segment.strip()
-
-            if not segment_text:
-                sequences.append(0)
-                current_chunk_idx += 1
-            else:
-                # FIRST: Strip A1111 syntax from entire segment
-                # This handles bracket expressions with spaces like [A|B C|D]
-                clean_segment = strip_a1111_syntax(segment_text)
-
-                if not clean_segment:
-                    sequences.append(0)
-                    current_chunk_idx += 1
-                    current_text_offset = segment_start + len(segment)
-                    continue
-
-                # Word-by-word tokenization with position tracking
-                # Split into words from the CLEANED segment
-                word_pattern = r"(\S+)"
-                words_with_pos = []
-
-                for match in re.finditer(word_pattern, clean_segment):
-                    word = match.group(1)
-                    # Position relative to segment start
-                    word_start = match.start()
-                    word_end = match.end()
-                    words_with_pos.append((word, word_start, word_end))
-
-                # Tokenize each word and track cumulative token count
-                chunk_size = 75
-                current_chunk_tokens = 0
-                chunk_sequences = []
-
-                for word, word_start_rel, word_end_rel in words_with_pos:
-                    # Words are already from the cleaned segment, just tokenize directly
-                    word_tokens = hf_tokenizer.encode(word, add_special_tokens=False)
-                    word_token_count = len(word_tokens)
-
-                    # Check if adding this word would exceed chunk size
-                    if (
-                        current_chunk_tokens + word_token_count > chunk_size
-                        and current_chunk_tokens > 0
-                    ):
-                        # Save current chunk
-                        chunk_sequences.append(current_chunk_tokens)
-
-                        # Add boundary marker at the END of the previous word
-                        # (which is the start of this word)
-                        boundary_char = segment_start + word_start_rel
-                        boundaries.append({"char_pos": boundary_char, "type": "chunk"})
-
-                        current_chunk_tokens = 0
-                        current_chunk_idx += 1
-
-                    # Decode each token to get the text representation
-                    for token_id in word_tokens:
-                        token_text = hf_tokenizer.decode([token_id])
-                        tokens_detail.append(
-                            {
-                                "text": token_text,
-                                "id": token_id,
-                                "chunk": current_chunk_idx,
-                            }
-                        )
-
-                    current_chunk_tokens += word_token_count
-
-                # Don't forget the last chunk
-                if current_chunk_tokens > 0:
-                    chunk_sequences.append(current_chunk_tokens)
-
-                sequences.extend(chunk_sequences if chunk_sequences else [0])
-                current_chunk_idx += 1
-
-            # Move past this segment
-            current_text_offset = segment_start + len(segment)
-
-            # Add BREAK boundary if not the last segment
-            if seg_idx < len(break_matches):
-                boundaries.append(
-                    {"char_pos": break_matches[seg_idx].start(), "type": "break"}
-                )
-                # Add BREAK marker to tokens
-                tokens_detail.append(
-                    {
-                        "text": "BREAK",
-                        "id": None,
-                        "chunk": current_chunk_idx - 1,
-                        "is_break": True,
-                    }
-                )
-
-        if not sequences:
-            sequences = [0]
-
-        # Calculate stats
-        word_count = len(text.split())
-        char_count = len(text)
-
-        return web.json_response(
-            {
-                "sequences": sequences,
-                "boundaries": boundaries,
-                "tokens": tokens_detail,
-                "stats": {
-                    "total_tokens": sum(sequences),
-                    "chunks": len(sequences),
-                    "words": word_count,
-                    "characters": char_count,
-                },
-            }
-        )
+        return web.json_response(build_token_info(text, counting_text, hf_tokenizer))
     except Exception as e:
         import traceback
 

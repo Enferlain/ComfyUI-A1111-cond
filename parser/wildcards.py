@@ -14,7 +14,7 @@ import logging
 import random
 import re
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Callable, Iterable, List, Optional
 
 logger = logging.getLogger("A1111PromptNode")
 
@@ -61,6 +61,19 @@ def _resolve_wildcard_file(
     for file_path in _iter_wildcard_files(base_dir):
         if _normalize_wildcard_name(_display_name_for_file(file_path, base_dir)) == normalized_name:
             return file_path
+
+    leaf_matches = [
+        file_path
+        for file_path in _iter_wildcard_files(base_dir)
+        if file_path.stem.lower() == normalized_name
+    ]
+    if len(leaf_matches) == 1:
+        return leaf_matches[0]
+    if len(leaf_matches) > 1:
+        logger.warning(
+            "[A1111 Prompt] Ambiguous leaf wildcard name '%s'; use the full path to disambiguate.",
+            wildcard_name,
+        )
 
     return None
 
@@ -174,6 +187,106 @@ def _expand_dynamic_prompts(
     return DYNAMIC_PROMPT_PATTERN.sub(replace_match, text), changed
 
 
+def _select_highest_scoring_text(
+    options: List[str], scorer: Callable[[str], int]
+) -> str:
+    if not options:
+        return ""
+    return max(options, key=lambda option: (scorer(option), len(option), option))
+
+
+def _expand_dynamic_prompt_match_max(
+    match: re.Match[str],
+    scorer: Callable[[str], int],
+    expander: Callable[[str], str],
+) -> str:
+    combinations_str = match.group(1)
+    variants = [segment.strip() for segment in combinations_str.split("|")]
+    if not variants:
+        return ""
+
+    variants = [_strip_dynamic_variant_weight(variant) for variant in variants]
+
+    splits = variants[0].split("$$", 1)
+    quantity_spec: Optional[str] = None
+    if len(splits) == 2:
+        quantity_spec = splits[0].strip()
+        variants[0] = splits[1].strip()
+
+    try:
+        _, high_range = _parse_dynamic_range(quantity_spec, len(variants))
+    except ValueError:
+        return match.group(0)
+
+    if high_range <= 0:
+        return ""
+
+    expanded_variants = [expander(variant) for variant in variants]
+    ranked_variants = sorted(
+        expanded_variants,
+        key=lambda variant: (scorer(variant), len(variant), variant),
+        reverse=True,
+    )
+    return ", ".join(ranked_variants[: min(high_range, len(ranked_variants))])
+
+
+def _expand_wildcards_for_token_count(
+    text: str,
+    wildcards_dir: Optional[str],
+    scorer: Callable[[str], int],
+    depth_remaining: int,
+) -> str:
+    if not text or depth_remaining <= 0:
+        return text
+
+    current = text
+
+    for _ in range(depth_remaining):
+        changed = False
+
+        def replace_wildcard(match: re.Match[str]) -> str:
+            nonlocal changed
+            options = get_wildcard_options(match.group(1), wildcards_dir=wildcards_dir)
+            if not options:
+                return match.group(0)
+
+            changed = True
+            expanded_options = [
+                _expand_wildcards_for_token_count(
+                    option, wildcards_dir, scorer, depth_remaining - 1
+                )
+                for option in options
+            ]
+            return _select_highest_scoring_text(expanded_options, scorer)
+
+        expanded = WILDCARD_PATTERN.sub(replace_wildcard, current)
+
+        def replace_dynamic(match: re.Match[str]) -> str:
+            nonlocal changed
+
+            def expand_variant(variant: str) -> str:
+                return _expand_wildcards_for_token_count(
+                    variant, wildcards_dir, scorer, depth_remaining - 1
+                )
+
+            replacement = _expand_dynamic_prompt_match_max(
+                match,
+                scorer=scorer,
+                expander=expand_variant,
+            )
+            if replacement != match.group(0):
+                changed = True
+            return replacement
+
+        expanded = DYNAMIC_PROMPT_PATTERN.sub(replace_dynamic, expanded)
+        expanded = _normalize_prompt_spacing(expanded)
+        if not changed or expanded == current:
+            return expanded
+        current = expanded
+
+    return current
+
+
 def _normalize_prompt_spacing(text: str) -> str:
     text = re.sub(r"[ \t]*,[ \t]*", ", ", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
@@ -223,6 +336,27 @@ def expand_wildcards(
             current[:200],
         )
     return current
+
+
+def expand_wildcards_for_token_count(
+    text: str,
+    wildcards_dir: Optional[str] = None,
+    scorer: Optional[Callable[[str], int]] = None,
+    max_depth: int = MAX_WILDCARD_EXPANSION_DEPTH,
+) -> str:
+    """
+    Deterministically expand wildcards and dynamic prompts for worst-case token counting.
+
+    Runtime wildcard expansion remains random. This helper is only for UI estimates
+    and chooses the highest-scoring option at each wildcard/dynamic prompt branch.
+    """
+    score_text = scorer or (lambda value: len(value))
+    return _expand_wildcards_for_token_count(
+        text,
+        wildcards_dir=wildcards_dir,
+        scorer=score_text,
+        depth_remaining=max_depth,
+    )
 
 
 def get_wildcard_options(

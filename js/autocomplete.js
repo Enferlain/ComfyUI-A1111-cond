@@ -18,6 +18,12 @@ let currentWordInfo = null;
 let selectedIndex = -1;
 let currentResults = [];
 
+// Small in-memory response cache. It keeps typing responsive without making the
+// backend scan the large tag database for every repeated prefix.
+const AUTOCOMPLETE_CACHE_MAX = 80;
+const AUTOCOMPLETE_CACHE_TTL_MS = 5 * 60 * 1000;
+const autocompleteCache = new Map();
+
 // Frequency tracking
 const FREQUENCY_STORAGE_KEY = "a1111_tag_frequency";
 let tagFrequency = {}; // tag_name -> { count, lastUsed }
@@ -200,6 +206,98 @@ function getSortQuery(request) {
     return request.extra?.content_query || "";
   }
   return request.query || "";
+}
+
+function getRequestQueryKey(request) {
+  if (!request) {
+    return "";
+  }
+  if (request.mode === "wildcard_contents") {
+    return request.extra?.content_query || "";
+  }
+  return request.query || "";
+}
+
+function buildAutocompleteCacheKey(query, limit, mode, extra = {}) {
+  const keyPayload = {
+    mode,
+    query: normalizeAutocompleteQuery(query),
+    limit,
+    wildcard_name: extra.wildcard_name || "",
+    content_query: extra.content_query || "",
+  };
+  return JSON.stringify(keyPayload);
+}
+
+function setCachedSuggestions(query, limit, mode, extra, results) {
+  const payload = {
+    mode,
+    query: normalizeAutocompleteQuery(query),
+    limit,
+    wildcard_name: extra.wildcard_name || "",
+    content_query: extra.content_query || "",
+  };
+  const key = buildAutocompleteCacheKey(query, limit, mode, extra);
+  autocompleteCache.set(key, {
+    at: Date.now(),
+    payload,
+    results: Array.isArray(results) ? results : [],
+  });
+
+  while (autocompleteCache.size > AUTOCOMPLETE_CACHE_MAX) {
+    autocompleteCache.delete(autocompleteCache.keys().next().value);
+  }
+}
+
+function getCachedSuggestions(query, limit, mode, extra = {}) {
+  const key = buildAutocompleteCacheKey(query, limit, mode, extra);
+  const cached = autocompleteCache.get(key);
+  if (!cached) {
+    return null;
+  }
+
+  if (Date.now() - cached.at > AUTOCOMPLETE_CACHE_TTL_MS) {
+    autocompleteCache.delete(key);
+    return null;
+  }
+
+  return cached.results.slice();
+}
+
+function getCachedPrefixSuggestions(request, limit = 20) {
+  const rawQuery = getRequestQueryKey(request);
+  const query = normalizeAutocompleteQuery(rawQuery);
+  if (!query) {
+    return null;
+  }
+
+  for (const cached of autocompleteCache.values()) {
+    if (Date.now() - cached.at > AUTOCOMPLETE_CACHE_TTL_MS) {
+      continue;
+    }
+
+    if (!cached.payload || cached.payload.mode !== request.mode) {
+      continue;
+    }
+    if (
+      request.mode === "wildcard_contents" &&
+      cached.payload.wildcard_name !== (request.extra?.wildcard_name || "")
+    ) {
+      continue;
+    }
+    if (!query.startsWith(cached.payload.query)) {
+      continue;
+    }
+
+    const matches = cached.results.filter(
+      (tag) => getSuggestionRelevance(tag, rawQuery) > 0
+    );
+    if (matches.length > 0) {
+      return matches.slice(0, limit);
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -519,11 +617,21 @@ function sortByFrequency(suggestions, query = "") {
       _relevance: relevance,
     };
   }).sort((a, b) => {
+    const exactDelta = Number(b._relevance === 3) - Number(a._relevance === 3);
+    if (exactDelta !== 0) {
+      return exactDelta;
+    }
+
+    const hasUsage = a._usageScore > 0 || b._usageScore > 0;
+    if (hasUsage && Math.abs(b._usageScore - a._usageScore) > 0.05) {
+      return b._usageScore - a._usageScore;
+    }
+
     if (b._relevance !== a._relevance) {
       return b._relevance - a._relevance;
     }
 
-    if (Math.abs(b._usageScore - a._usageScore) > 0.05) {
+    if (!hasUsage && Math.abs(b._usageScore - a._usageScore) > 0.05) {
       return b._usageScore - a._usageScore;
     }
 
@@ -700,6 +808,10 @@ export async function fetchTagSuggestions(query, limit = 20, mode = "tag", extra
   if (!query) return [];
   if (!isWildcard && query.length < 2) return [];
   const effectiveLimit = isWildcard ? Math.max(limit, 200) : limit;
+  const cached = getCachedSuggestions(query, effectiveLimit, mode, extra);
+  if (cached) {
+    return cached;
+  }
 
   try {
     const response = await fetch("/a1111_prompt/autocomplete", {
@@ -721,7 +833,9 @@ export async function fetchTagSuggestions(query, limit = 20, mode = "tag", extra
     }
 
     const data = await response.json();
-    return data.results || [];
+    const results = data.results || [];
+    setCachedSuggestions(query, effectiveLimit, mode, extra, results);
+    return results;
   } catch (error) {
     console.warn("Autocomplete fetch error:", error);
     
@@ -878,19 +992,21 @@ app.registerExtension({
     const textWidget = node.widgets?.find((w) => w.name === "text");
     if (!textWidget) return;
 
-    // Wait for textarea to be available
-    const waitForTextarea = () => {
-      if (!textWidget.inputEl) {
-        requestAnimationFrame(waitForTextarea);
+    let boundTextarea = null;
+    let monitorFrame = null;
+
+    const bindTextarea = (textarea) => {
+      if (!textarea || textarea === boundTextarea) {
         return;
       }
 
-      const textarea = textWidget.inputEl;
+      node._autocompleteCleanup?.();
+      boundTextarea = textarea;
       let suppressAutocomplete = false;
       let debounceTimeout = null;
       let requestVersion = 0;
 
-      const scheduleAutocomplete = (delay = 100) => {
+      const scheduleAutocomplete = (delay = 50) => {
         clearTimeout(debounceTimeout);
         const scheduledVersion = ++requestVersion;
 
@@ -906,6 +1022,16 @@ app.registerExtension({
           if (request.query.length < request.minLength) {
             hideAutocompletePopup();
             return;
+          }
+
+          const cachedSuggestions = getCachedPrefixSuggestions(request);
+          if (cachedSuggestions && cachedSuggestions.length > 0) {
+            showAutocompleteSuggestions(
+              cachedSuggestions,
+              textarea,
+              wordInfo,
+              request
+            );
           }
 
           const suggestions = await fetchTagSuggestions(
@@ -944,7 +1070,7 @@ app.registerExtension({
       };
 
       // Add input event listener for autocomplete
-      textarea.addEventListener("input", async (e) => {
+      const onInput = async (e) => {
         if (suppressAutocomplete) {
           suppressAutocomplete = false;
           requestVersion++;
@@ -953,10 +1079,11 @@ app.registerExtension({
         }
 
         scheduleAutocomplete();
-      });
+      };
+      textarea.addEventListener("input", onInput);
 
       // Add keydown event listener for navigation
-      textarea.addEventListener("keydown", (e) => {
+      const onKeydown = (e) => {
         if (e.key === "Backspace") {
           const start = textarea.selectionStart;
           const end = textarea.selectionEnd;
@@ -980,15 +1107,17 @@ app.registerExtension({
           // Event was handled by autocomplete
           return;
         }
-      });
+      };
+      textarea.addEventListener("keydown", onKeydown);
 
       // Hide popup on blur (with delay to allow clicks)
-      textarea.addEventListener("blur", () => {
+      const onBlur = () => {
         textarea._a1111_autocomplete_blur_timeout = setTimeout(() => {
           hideAutocompletePopup();
           textarea._a1111_autocomplete_blur_timeout = null;
         }, 200);
-      });
+      };
+      textarea.addEventListener("blur", onBlur);
 
       // Hide popup when clicking outside
       const outsideClickListener = (e) => {
@@ -1003,20 +1132,56 @@ app.registerExtension({
       // Store for cleanup
       node._outsideClickListener = outsideClickListener;
       node._autocompleteCleanup = () => {
+        requestVersion++;
         clearTimeout(debounceTimeout);
+        textarea.removeEventListener("input", onInput);
+        textarea.removeEventListener("keydown", onKeydown);
+        textarea.removeEventListener("blur", onBlur);
+        document.removeEventListener("click", outsideClickListener);
+        if (node._outsideClickListener === outsideClickListener) {
+          node._outsideClickListener = null;
+        }
         if (textarea._a1111_autocomplete_blur_timeout) {
           clearTimeout(textarea._a1111_autocomplete_blur_timeout);
           textarea._a1111_autocomplete_blur_timeout = null;
         }
+        if (currentTextarea === textarea) {
+          hideAutocompletePopup();
+        }
+        if (boundTextarea === textarea) {
+          boundTextarea = null;
+        }
       };
     };
 
-    requestAnimationFrame(waitForTextarea);
+    const monitorTextarea = () => {
+      if (node._autocompleteRemoved) {
+        return;
+      }
+
+      const textarea = textWidget.inputEl;
+      if (textarea && textarea.isConnected) {
+        bindTextarea(textarea);
+      } else if (boundTextarea) {
+        node._autocompleteCleanup?.();
+      }
+
+      monitorFrame = requestAnimationFrame(monitorTextarea);
+    };
+
+    monitorFrame = requestAnimationFrame(monitorTextarea);
+    node._autocompleteMonitorCleanup = () => {
+      if (monitorFrame) {
+        cancelAnimationFrame(monitorFrame);
+        monitorFrame = null;
+      }
+    };
 
     // Add cleanup on node removal
     const onRemoved = node.onRemoved;
     node.onRemoved = function () {
       if (onRemoved) onRemoved.apply(this, arguments);
+      this._autocompleteRemoved = true;
 
       // Remove the specific document click listener for this node
       if (this._outsideClickListener) {
@@ -1024,6 +1189,8 @@ app.registerExtension({
         this._outsideClickListener = null;
       }
 
+      this._autocompleteMonitorCleanup?.();
+      this._autocompleteMonitorCleanup = null;
       this._autocompleteCleanup?.();
       this._autocompleteCleanup = null;
     };

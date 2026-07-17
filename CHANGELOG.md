@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Rules:
+- Use proper sub titles "Added", "Changed", "Removed" and "Fixed"
+- Keep proper track of days for where entries should go
+- Be concise but mention all changes without necessarily detailing each one
+
+## [Unreleased] - 2026-06-15
+
+### Added
+
+- **Autocomplete Response Cache**: Added a client-side cache for repeated and prefix-refined autocomplete queries.
+- **Autocomplete Prefix Index**: Added backend prefix indexing for tag names and aliases to speed up large tag database searches.
+- **Wildcard Token Estimates**: Added deterministic longest-option wildcard and dynamic prompt expansion for live token counting.
+- **Prompt PNG Metadata**: Added an `a1111_prompt_node` PNG metadata entry that records each A1111 prompt node's original and resolved prompt by node id.
+
+### Changed
+
+- **Autocomplete Responsiveness**: Reduced autocomplete debounce from 100 ms to 50 ms and shows cached prefix matches while fresh results load.
+- **Autocomplete Ranking**: Frequent and recently selected entries now have stronger ranking influence while exact matches remain prioritized.
+- **Effective Prompt Restore**: The resolved prompt preview is now stored with the workflow and shown behind a compact toggle so dragged-back images can reveal the prompt that was actually encoded without shrinking the main prompt field.
+- **Wildcard Completion Text**: Nested wildcard autocomplete now inserts the leaf name when it is unambiguous, falling back to the full path only for duplicate leaf names.
+
+### Fixed
+
+- Fixed autocomplete lifecycle rebinding when ComfyUI recreates prompt textarea DOM.
+- Fixed autocomplete API coercion for unusual query, limit, boolean, file, and request-body values.
+- Fixed token boundary positions after A1111 syntax stripping so markers align better with original prompt text.
+- Fixed token counter route registration/import resilience after adding wildcard token estimates.
+- Fixed literal `__wildcard__` text being counted instead of the maximum estimated wildcard expansion in the token counter.
+- Fixed wildcard-only parser imports requiring Lark when scheduler parsing is not being used.
+- Fixed dragged-back generated images not showing the resolved prompt preview by writing restore data into the embedded workflow metadata during node execution.
+- Fixed resolved prompt preview collapse/expand layout so the preview stays inside the node bounds after toggling.
+- Fixed token sequence boundary markers disappearing for wildcard-estimated counts and later sequence cutoffs.
+- Hardened resolved prompt preview toggles so restored or rebuilt widgets keep a working click handler and stray input events do not collapse an unchanged preview.
+
 ## [Unreleased] - 2026-04-22
 
 ### Added

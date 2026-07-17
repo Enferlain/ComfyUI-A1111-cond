@@ -11,6 +11,7 @@ prompt and logs an info message.
 
 import logging
 from ..parser import expand_wildcards, get_prompt_schedule
+from ..metadata import record_prompt_metadata
 from .prompt_node import A1111PromptNode
 
 logger = logging.getLogger("A1111PromptNode")
@@ -45,6 +46,10 @@ class A1111PromptNegative:
                     {"default": False, "label_on": "Enable", "label_off": "Disable"},
                 ),
             },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+            },
         }
 
     RETURN_TYPES = ("CONDITIONING",)
@@ -53,7 +58,15 @@ class A1111PromptNegative:
     CATEGORY = "conditioning/advanced"
     OUTPUT_NODE = True
 
-    def encode(self, clip, text, normalization=False, debug=False):
+    def encode(
+        self,
+        clip,
+        text,
+        normalization=False,
+        debug=False,
+        unique_id=None,
+        extra_pnginfo=None,
+    ):
         """
         Encode negative prompt. Uses first step only if scheduling is detected.
         """
@@ -61,6 +74,13 @@ class A1111PromptNegative:
             raise RuntimeError("ERROR: clip input is None")
 
         expanded_text = expand_wildcards(text)
+        record_prompt_metadata(
+            extra_pnginfo,
+            unique_id,
+            "A1111PromptNegative",
+            text,
+            expanded_text,
+        )
 
         is_sdxl = hasattr(clip.cond_stage_model, "clip_l") and hasattr(
             clip.cond_stage_model, "clip_g"

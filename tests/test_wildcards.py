@@ -9,6 +9,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from parser.wildcards import (
     expand_wildcards,
+    expand_wildcards_for_token_count,
     get_wildcard_options,
     list_available_wildcards,
 )
@@ -69,6 +70,30 @@ class TestWildcards(unittest.TestCase):
         )
 
         self.assertEqual(expanded, "mahou shoujo")
+
+    def test_expand_wildcards_resolves_unique_leaf_names(self):
+        self.write_wildcard("characters/accessories/hats.txt", "wide brim hat\n")
+
+        expanded = expand_wildcards(
+            "__hats__",
+            wildcards_dir=str(self.wildcards_dir),
+            rng=random.Random(0),
+        )
+
+        self.assertEqual(expanded, "wide brim hat")
+
+    def test_ambiguous_leaf_wildcards_are_left_unchanged(self):
+        self.write_wildcard("characters/hats.txt", "beret\n")
+        self.write_wildcard("props/hats.txt", "helmet\n")
+
+        with self.assertLogs("A1111PromptNode", level="WARNING"):
+            expanded = expand_wildcards(
+                "__hats__",
+                wildcards_dir=str(self.wildcards_dir),
+                rng=random.Random(0),
+            )
+
+        self.assertEqual(expanded, "__hats__")
 
     def test_expand_wildcards_resolves_dynamic_prompt_choices(self):
         expanded = expand_wildcards(
@@ -138,6 +163,38 @@ class TestWildcards(unittest.TestCase):
             ),
             "__loop__",
         )
+
+    def test_token_count_expansion_uses_highest_scoring_wildcard_option(self):
+        self.write_wildcard("subject.txt", "cat\nvery very long subject\n")
+
+        expanded = expand_wildcards_for_token_count(
+            "portrait of __subject__",
+            wildcards_dir=str(self.wildcards_dir),
+            scorer=lambda value: len(value.split()),
+        )
+
+        self.assertEqual(expanded, "portrait of very very long subject")
+
+    def test_token_count_expansion_uses_max_dynamic_prompt_quantity(self):
+        expanded = expand_wildcards_for_token_count(
+            "{1-2$$red|blue|extremely long green}",
+            wildcards_dir=str(self.wildcards_dir),
+            scorer=lambda value: len(value.split()),
+        )
+
+        self.assertEqual(expanded, "extremely long green, blue")
+
+    def test_token_count_expansion_resolves_nested_wildcards(self):
+        self.write_wildcard("colors.txt", "red\nultramarine blue\n")
+        self.write_wildcard("outfits.txt", "__colors__ robe\nhat\n")
+
+        expanded = expand_wildcards_for_token_count(
+            "__outfits__",
+            wildcards_dir=str(self.wildcards_dir),
+            scorer=lambda value: len(value.split()),
+        )
+
+        self.assertEqual(expanded, "ultramarine blue robe")
 
 
 if __name__ == "__main__":

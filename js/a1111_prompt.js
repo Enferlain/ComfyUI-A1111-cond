@@ -38,59 +38,247 @@ app.registerExtension({
         });
       }
 
-      /**
-       * Populate the node with a readonly text widget showing the prompt
-       */
-      function populate(text) {
-        // Find or create the display widget
-        let displayWidget = this.widgets?.find(
-          (w) => w.name === "_prompt_display"
+      function getCurrentText(node) {
+        const textWidget = node.widgets?.find((w) => w.name === "text");
+        return textWidget?.inputEl?.value ?? textWidget?.value ?? "";
+      }
+
+      const PREVIEW_PROPERTY = "a1111_resolved_prompt";
+      const PREVIEW_EXPANDED_PROPERTY = "a1111_resolved_prompt_expanded";
+      const PREVIEW_SOURCE_PROPERTY = "a1111_resolved_prompt_source";
+      const PREVIEW_WIDGET_HEIGHT = 120;
+      const HIDDEN_WIDGET_HEIGHT = -4;
+
+      function getPreviewText(node) {
+        return node.properties?.[PREVIEW_PROPERTY] || "";
+      }
+
+      function getPreviewSource(node) {
+        return node.properties?.[PREVIEW_SOURCE_PROPERTY] || "";
+      }
+
+      function isPreviewExpanded(node) {
+        return Boolean(node.properties?.[PREVIEW_EXPANDED_PROPERTY]);
+      }
+
+      function setPreviewExpanded(node, expanded) {
+        node.properties ??= {};
+        node.properties[PREVIEW_EXPANDED_PROPERTY] = Boolean(expanded);
+      }
+
+      function setPreviewText(node, value, sourceText = "") {
+        node.properties ??= {};
+        if (value) {
+          node.properties[PREVIEW_PROPERTY] = value;
+          node.properties[PREVIEW_SOURCE_PROPERTY] = sourceText;
+        } else {
+          delete node.properties[PREVIEW_PROPERTY];
+          delete node.properties[PREVIEW_EXPANDED_PROPERTY];
+          delete node.properties[PREVIEW_SOURCE_PROPERTY];
+        }
+      }
+
+      function getSavedPreviewValue(node, info) {
+        const previewFromProperties =
+          info?.properties?.[PREVIEW_PROPERTY] ??
+          node.properties?.[PREVIEW_PROPERTY] ??
+          "";
+        if (previewFromProperties) return previewFromProperties;
+
+        const widgetValues = info?.widgets_values ?? node.widgets_values;
+        if (!Array.isArray(widgetValues)) return "";
+
+        // Compatibility with workflows saved while _prompt_display was serialized
+        // as an extra widget value.
+        return widgetValues.length > 3 ? widgetValues[3] || "" : "";
+      }
+
+      function getSavedPreviewSource(node, info) {
+        return (
+          info?.properties?.[PREVIEW_SOURCE_PROPERTY] ??
+          node.properties?.[PREVIEW_SOURCE_PROPERTY] ??
+          getCurrentText(node)
         );
+      }
 
-        // Get the actual text value (could be an array)
-        const textValue = Array.isArray(text) ? text[0] : text;
+      function setWidgetHidden(widget, hidden) {
+        if (!widget) return;
+        if (!widget._a1111OriginalComputeSize) {
+          widget._a1111OriginalComputeSize = widget.computeSize;
+        }
 
-        const textWidget = this.widgets?.find((w) => w.name === "text");
-        const currentText = textWidget?.inputEl?.value ?? textWidget?.value ?? "";
-        
-        // Only show if the effective prompt is different from the input text
-        // This avoids clutter when no expansion (TIPO, etc.) is happening
-        if (!textValue || textValue === currentText) {
-          if (displayWidget) {
-            // Hide the widget if it exists but is no longer needed
-            displayWidget.type = "converted-widget"; // Effectively hides it in ComfyUI
-            if (displayWidget.inputEl) displayWidget.inputEl.style.display = "none";
-            displayWidget.value = "";
-            resizeNode(this);
-          }
+        if (hidden) {
+          widget.computeSize = () => [0, HIDDEN_WIDGET_HEIGHT];
+          if (widget.inputEl) widget.inputEl.style.display = "none";
+        } else {
+          widget.computeSize = widget._a1111OriginalComputeSize;
+          if (widget.inputEl) widget.inputEl.style.display = "block";
+        }
+      }
+
+      function setPreviewWidgetHidden(widget, hidden) {
+        if (!widget) return;
+        if (hidden) {
+          widget.computeSize = () => [0, HIDDEN_WIDGET_HEIGHT];
+          if (widget.inputEl) widget.inputEl.style.display = "none";
           return;
         }
 
+        widget.computeSize = () => [0, PREVIEW_WIDGET_HEIGHT];
+        if (widget.inputEl) {
+          widget.inputEl.style.display = "block";
+          widget.inputEl.style.height = `${PREVIEW_WIDGET_HEIGHT - 16}px`;
+          widget.inputEl.style.boxSizing = "border-box";
+          widget.inputEl.style.border = "1px solid var(--border-color, #4b4664)";
+          widget.inputEl.style.borderRadius = "4px";
+        }
+      }
+
+      function ensureToggleWidget(node) {
+        let toggleWidget = node.widgets?.find(
+          (w) => w._a1111PreviewToggle || w.name === "_prompt_display_toggle"
+        );
+        if (!toggleWidget) {
+          toggleWidget = node.addWidget(
+            "button",
+            "resolved prompt",
+            "Show",
+            () => {}
+          );
+          toggleWidget.serialize = false;
+        }
+        toggleWidget._a1111PreviewToggle = true;
+        toggleWidget.serialize = false;
+        toggleWidget.type = "button";
+        toggleWidget.callback = () => {
+          setPreviewExpanded(node, !isPreviewExpanded(node));
+          renderPreview(node);
+        };
+        return toggleWidget;
+      }
+
+      function ensureDisplayWidget(node) {
+        let displayWidget = node.widgets?.find(
+          (w) => w.name === "_prompt_display"
+        );
+
         if (!displayWidget) {
-          // Create a new readonly widget to show the prompt
           const widgetResult = ComfyWidgets["STRING"](
-            this,
+            node,
             "_prompt_display",
             ["STRING", { multiline: true }],
             app
           );
           displayWidget = widgetResult.widget;
+        }
+
+        displayWidget.serialize = false;
+        if (displayWidget.inputEl) {
           displayWidget.inputEl.readOnly = true;
           displayWidget.inputEl.style.opacity = "0.7";
           displayWidget.inputEl.style.fontStyle = "italic";
           displayWidget.inputEl.placeholder =
             "(Prompt will appear after execution)";
-          // Mark it as a display-only widget
-          displayWidget.serialize = false;
         }
 
-        // Ensure it's visible if we're populating it
-        displayWidget.type = "customtext";
-        if (displayWidget.inputEl) displayWidget.inputEl.style.display = "block";
-        displayWidget.value = textValue;
-
-        resizeNode(this);
+        return displayWidget;
       }
+
+      function hideDisplayWidget(node, displayWidget, clearValue = true) {
+        displayWidget.type = "converted-widget";
+        setPreviewWidgetHidden(displayWidget, true);
+        if (clearValue) displayWidget.value = "";
+        resizeNode(node);
+      }
+
+      function showDisplayWidget(node, displayWidget, textValue) {
+        displayWidget.type = "customtext";
+        setPreviewWidgetHidden(displayWidget, false);
+        displayWidget.value = textValue;
+        resizeNode(node);
+      }
+
+      function renderPreview(node) {
+        const previewText = getPreviewText(node);
+        const currentText = getCurrentText(node);
+        const toggleWidget = node.widgets?.find(
+          (w) => w._a1111PreviewToggle || w.name === "_prompt_display_toggle"
+        );
+        const displayWidget = node.widgets?.find(
+          (w) => w.name === "_prompt_display"
+        );
+
+        if (!previewText || previewText === currentText) {
+          if (previewText === currentText) setPreviewText(node, "");
+          if (toggleWidget) setWidgetHidden(toggleWidget, true);
+          if (displayWidget) hideDisplayWidget(node, displayWidget, true);
+          resizeNode(node);
+          return;
+        }
+
+        const visibleToggle = ensureToggleWidget(node);
+        const isExpanded = isPreviewExpanded(node);
+        visibleToggle.label = isExpanded
+          ? "Hide"
+          : "Show";
+        visibleToggle.value = visibleToggle.label;
+        setWidgetHidden(visibleToggle, false);
+
+        if (isExpanded) {
+          showDisplayWidget(node, ensureDisplayWidget(node), previewText);
+        } else if (displayWidget) {
+          hideDisplayWidget(node, displayWidget, false);
+        }
+
+        resizeNode(node);
+      }
+
+      /**
+       * Populate the node with a readonly text widget showing the prompt.
+       */
+      function populate(text) {
+        const textValue = Array.isArray(text) ? text[0] : text;
+        const currentText = getCurrentText(this);
+
+        // Only show if the effective prompt is different from the input text.
+        // This avoids clutter when no expansion (TIPO, etc.) is happening.
+        if (!textValue || textValue === currentText) {
+          setPreviewText(this, "");
+          renderPreview(this);
+          return;
+        }
+
+        setPreviewText(this, textValue, currentText);
+        setPreviewExpanded(this, false);
+        renderPreview(this);
+      }
+
+      function clearPreviewOnTextEdit(node) {
+        const textWidget = node.widgets?.find((w) => w.name === "text");
+        const textInput = textWidget?.inputEl;
+        if (!textInput || textInput.dataset.a1111PromptPreviewClear === "true") {
+          return;
+        }
+
+        textInput.dataset.a1111PromptPreviewClear = "true";
+        textInput.addEventListener("input", () => {
+          const sourceText = getPreviewSource(node);
+          if (sourceText && getCurrentText(node) === sourceText) {
+            renderPreview(node);
+            return;
+          }
+          if (getPreviewText(node)) {
+            setPreviewText(node, "");
+            renderPreview(node);
+          }
+        });
+      }
+
+      const onNodeCreated = nodeType.prototype.onNodeCreated;
+      nodeType.prototype.onNodeCreated = function () {
+        onNodeCreated?.apply(this, arguments);
+        requestAnimationFrame(() => clearPreviewOnTextEdit(this));
+      };
 
       // Hook into onExecuted to display the prompt after execution
       const onExecuted = nodeType.prototype.onExecuted;
@@ -100,10 +288,14 @@ app.registerExtension({
       };
 
       const onConfigure = nodeType.prototype.onConfigure;
-      nodeType.prototype.onConfigure = function () {
+      nodeType.prototype.onConfigure = function (info) {
         onConfigure?.apply(this, arguments);
-        // Preview text should reflect the latest execution only, not restored widget state.
-        requestAnimationFrame(() => populate.call(this, ""));
+        requestAnimationFrame(() => {
+          clearPreviewOnTextEdit(this);
+          const savedPreview = getSavedPreviewValue(this, info);
+          if (savedPreview) setPreviewText(this, savedPreview, getSavedPreviewSource(this, info));
+          renderPreview(this);
+        });
       };
     }
   },
@@ -529,23 +721,31 @@ app.registerExtension({
       let html = "";
       let lastPos = 0;
 
-      // Sort boundaries by position
-      const sortedBoundaries = [...boundaries].sort(
-        (a, b) => a.char_pos - b.char_pos
-      );
+      // Sort boundaries by position. Estimated wildcard boundaries can map
+      // multiple chunk cuts to the same source position, so equal positions
+      // must still render separate markers.
+      const sortedBoundaries = [...boundaries]
+        .filter((boundary) => Number.isFinite(boundary?.char_pos))
+        .sort((a, b) => a.char_pos - b.char_pos);
+      const markersAtPosition = new Map();
 
       for (const boundary of sortedBoundaries) {
         const pos = Math.min(boundary.char_pos, text.length);
-        if (pos <= lastPos) continue;
+        if (pos < lastPos) continue;
 
         // Add text before boundary
-        html += escapeHtml(text.slice(lastPos, pos));
+        if (pos > lastPos) {
+          html += escapeHtml(text.slice(lastPos, pos));
+        }
 
         // Add boundary marker
         const markerColor =
           boundary.type === "break"
             ? "#3498db" // Blue for BREAK
             : "#e67e22"; // Orange for chunk boundary
+        const markerOpacity = boundary.estimated ? 0.45 : 0.7;
+        const markerOffset = markersAtPosition.get(pos) || 0;
+        markersAtPosition.set(pos, markerOffset + 1);
 
         html += `<span style="
           display: inline-block;
@@ -558,13 +758,13 @@ app.registerExtension({
         "><span style="
           display: block;
           position: absolute;
-          left: -1px;
+          left: ${-1 + markerOffset * 3}px;
           top: 0;
           width: 2px;
           height: 100%;
           background: ${markerColor};
           border-radius: 1px;
-          opacity: 0.7;
+          opacity: ${markerOpacity};
         "></span></span>`;
 
         lastPos = pos;

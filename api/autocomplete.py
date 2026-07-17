@@ -36,7 +36,63 @@ DATA_DIR = Path(__file__).parent.parent / "data" / "tags"
 WILDCARDS_DIR = Path(__file__).parent.parent / "data" / "wildcards"
 
 # Default tag file to use if not specified (danbooru.csv is default)
-DEFAULT_TAG_FILE = "danbooru.csv"
+DEFAULT_TAG_FILE = "danbooru_e621_merged_2026-03-01_pt20-ia-dd-ed-spc.csv"
+
+
+def _coerce_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _coerce_bool(value, default: bool = True) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _coerce_limit(value, default: int = 20, cap: int = 100) -> int:
+    try:
+        limit = int(value)
+    except (TypeError, ValueError):
+        limit = default
+    return max(0, min(limit, cap))
+
+
+def _normalize_tag_filename(value, default: Optional[str] = None) -> Optional[str]:
+    filename = _coerce_text(value).strip()
+    if not filename:
+        return default
+
+    filename = filename.replace("\\", "/")
+    path = Path(filename)
+    if path.is_absolute() or ".." in path.parts:
+        return default
+    return filename
+
+
+def _normalize_extra_files(value) -> List[str]:
+    if value is None:
+        value = ["extra-quality-tags.csv"]
+    elif isinstance(value, str):
+        value = [value]
+    elif not isinstance(value, list):
+        value = ["extra-quality-tags.csv"]
+
+    files = []
+    for item in value:
+        filename = _normalize_tag_filename(item)
+        if filename and filename not in files:
+            files.append(filename)
+    return files
 
 
 class TagEntry:
@@ -65,18 +121,21 @@ class TagEntry:
 class WildcardEntry:
     """Represents a single wildcard file available for completion."""
 
-    __slots__ = ("name", "kind", "search_text")
+    __slots__ = ("name", "kind", "search_text", "leaf_name")
 
     def __init__(self, name: str, kind: str):
         self.name = name
         self.kind = kind
         self.search_text = name.lower()
+        self.leaf_name = name.rsplit("/", 1)[-1]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self, completion_name: str = "") -> Dict:
+        completion_name = completion_name or self.leaf_name
         return {
             "name": self.name,
+            "leaf_name": self.leaf_name,
             "kind": self.kind,
-            "completion": f"__{self.name}__",
+            "completion": f"__{completion_name}__",
             "meta": "Wildcard folder" if self.kind == "wildcard_folder" else "Wildcard file",
         }
 
@@ -92,6 +151,7 @@ class TagDatabase:
     def __init__(self):
         self._tags: List[TagEntry] = []
         self._alias_map: Dict[str, TagEntry] = {}  # alias -> canonical tag
+        self._prefix_index: Dict[str, List[Tuple[TagEntry, Optional[str], str]]] = {}
         self._loaded = False
         self._current_files: List[str] = []
 
@@ -102,6 +162,19 @@ class TagDatabase:
     @property
     def tag_count(self) -> int:
         return len(self._tags)
+
+    def _add_prefix_index_entry(
+        self, text: str, tag: TagEntry, matched_alias: Optional[str] = None
+    ) -> None:
+        normalized = text.lower().strip()
+        if not normalized:
+            return
+
+        for prefix_len in range(1, min(3, len(normalized)) + 1):
+            prefix = normalized[:prefix_len]
+            self._prefix_index.setdefault(prefix, []).append(
+                (tag, matched_alias, normalized)
+            )
 
     def load_csv(self, filepath: Path, append: bool = False) -> int:
         """
@@ -120,6 +193,7 @@ class TagDatabase:
         if not append:
             self._tags = []
             self._alias_map = {}
+            self._prefix_index = {}
             self._current_files = []
 
         if not filepath.exists():
@@ -159,10 +233,12 @@ class TagDatabase:
                     self._tags.append(entry)
                     existing_tags.add(name)
                     loaded_count += 1
+                    self._add_prefix_index_entry(name, entry)
 
                     # Build alias -> canonical tag mapping
                     for alias in aliases:
                         self._alias_map[alias.lower()] = entry
+                        self._add_prefix_index_entry(alias, entry, alias)
 
             self._loaded = True
             self._current_files.append(filepath.name)
@@ -203,7 +279,10 @@ class TagDatabase:
         Returns:
             List of matching tags as dictionaries
         """
-        if not self._loaded or not query:
+        query = _coerce_text(query)
+        limit = _coerce_limit(limit, default=20, cap=100)
+
+        if not self._loaded or not query or limit == 0:
             return []
 
         query_lower = query.lower().strip()
@@ -222,12 +301,36 @@ class TagDatabase:
             else:
                 return 1  # Contains match
 
+        def add_result(tag: TagEntry, matched_alias: Optional[str], matched_text: str):
+            if tag.name in seen_tags:
+                return
+            score = get_score(tag, matched_text)
+            results.append((score, tag, matched_alias))
+            seen_tags.add(tag.name)
+
+        prefix_key = query_lower[: min(3, len(query_lower))]
+        for tag, matched_alias, matched_text in self._prefix_index.get(prefix_key, []):
+            if matched_alias and not search_aliases:
+                continue
+            if matched_text == query_lower or matched_text.startswith(query_lower):
+                add_result(tag, matched_alias, matched_text)
+
+        if len(results) >= limit:
+            results.sort(key=lambda x: (-x[0], -x[1].count))
+            output = []
+            for _, tag, matched_alias in results[:limit]:
+                entry = tag.to_dict()
+                if matched_alias:
+                    entry["matched_alias"] = matched_alias
+                output.append(entry)
+            return output
+
         # Search by tag name
         for tag in self._tags:
+            if tag.name in seen_tags:
+                continue
             if query_lower in tag.search_text:
-                score = get_score(tag, tag.search_text)
-                results.append((score, tag, None))
-                seen_tags.add(tag.name)
+                add_result(tag, None, tag.search_text)
 
         # Search by aliases
         if search_aliases:
@@ -235,14 +338,12 @@ class TagDatabase:
                 if tag.name in seen_tags:
                     continue
                 if query_lower in alias_lower:
-                    score = get_score(tag, alias_lower)
                     # Find the original case alias
                     original_alias = next(
                         (a for a in tag.aliases if a.lower() == alias_lower),
                         alias_lower,
                     )
-                    results.append((score, tag, original_alias))
-                    seen_tags.add(tag.name)
+                    add_result(tag, original_alias, alias_lower)
 
         # Sort by: score (desc), then post count (desc)
         results.sort(key=lambda x: (-x[0], -x[1].count))
@@ -265,6 +366,7 @@ class WildcardDatabase:
         self._wildcards_dir = wildcards_dir
         self._entries: List[WildcardEntry] = []
         self._entry_map: Dict[str, List[WildcardEntry]] = {}
+        self._leaf_counts: Dict[str, int] = {}
         self._loaded = False
 
     @property
@@ -278,6 +380,7 @@ class WildcardDatabase:
     def load(self) -> int:
         self._entries = []
         self._entry_map = {}
+        self._leaf_counts = {}
 
         if not self._wildcards_dir.exists():
             self._loaded = True
@@ -307,8 +410,18 @@ class WildcardDatabase:
         )
         for entry in self._entries:
             self._entry_map.setdefault(entry.search_text, []).append(entry)
+            leaf_key = entry.leaf_name.lower()
+            self._leaf_counts[leaf_key] = self._leaf_counts.get(leaf_key, 0) + 1
         self._loaded = True
         return len(self._entries)
+
+    def _entry_to_dict(self, entry: WildcardEntry) -> Dict:
+        completion_name = (
+            entry.leaf_name
+            if self._leaf_counts.get(entry.leaf_name.lower(), 0) == 1
+            else entry.name
+        )
+        return entry.to_dict(completion_name=completion_name)
 
     def _normalize_query(self, query: str) -> str:
         normalized = str(query or "").strip().lower()
@@ -337,12 +450,13 @@ class WildcardDatabase:
         if not self._loaded:
             self.load()
 
+        limit = _coerce_limit(limit, default=20, cap=500)
         normalized = self._normalize_query(query)
-        if len(normalized) > 255:
+        if len(normalized) > 255 or limit == 0:
             return []
 
         if not normalized:
-            return [entry.to_dict() for entry in self._entries[:limit]]
+            return [self._entry_to_dict(entry) for entry in self._entries[:limit]]
 
         scored: List[Tuple[int, WildcardEntry]] = []
         for entry in self._entries:
@@ -364,7 +478,7 @@ class WildcardDatabase:
                 item[1].search_text,
             )
         )
-        return [entry.to_dict() for _, entry in scored[:limit]]
+        return [self._entry_to_dict(entry) for _, entry in scored[:limit]]
 
     def get_contents(
         self, wildcard_name: str, content_query: str = "", limit: int = 50
@@ -372,13 +486,17 @@ class WildcardDatabase:
         if not self._loaded:
             self.load()
 
+        limit = _coerce_limit(limit, default=50, cap=500)
+        if limit == 0:
+            return []
+
         entry = self._resolve_entry(wildcard_name)
         if entry is None:
             return []
 
         if entry.kind == "wildcard_folder":
             prefix = f"{entry.name}/"
-            normalized_query = str(content_query or "").strip().lower()
+            normalized_query = _coerce_text(content_query).strip().lower()
             descendants = []
 
             for candidate in self._entries:
@@ -387,7 +505,7 @@ class WildcardDatabase:
                 remainder = candidate.name[len(prefix) :]
                 if normalized_query and normalized_query not in remainder.lower():
                     continue
-                descendants.append(candidate.to_dict())
+                descendants.append(self._entry_to_dict(candidate))
                 if len(descendants) >= limit:
                     break
 
@@ -399,7 +517,7 @@ class WildcardDatabase:
         if not wildcard_path.exists():
             return []
 
-        normalized_query = str(content_query or "").strip().lower()
+        normalized_query = _coerce_text(content_query).strip().lower()
         results = []
         with open(wildcard_path, "r", encoding="utf-8", errors="replace") as handle:
             for raw_line in handle:
@@ -454,9 +572,10 @@ def ensure_database_loaded(
     db = get_database()
 
     # Build list of files to load
-    files_to_load = [tag_file]
+    safe_tag_file = _normalize_tag_filename(tag_file, DEFAULT_TAG_FILE)
+    files_to_load = [safe_tag_file]
     if extra_files:
-        files_to_load.extend(extra_files)
+        files_to_load.extend(_normalize_extra_files(extra_files))
 
     # Check if we need to reload
     needs_reload = not db.is_loaded or set(db._current_files) != set(files_to_load)
@@ -528,28 +647,24 @@ if _HAS_SERVER and PromptServer:
         except Exception:
             return web.json_response({"error": "Invalid JSON"}, status=400)
 
-        query = data.get("query", "")
+        if not isinstance(data, dict):
+            return web.json_response(
+                {"error": "Request body must be a JSON object"}, status=400
+            )
+
+        query = _coerce_text(data.get("query", ""))
         if len(query) > 255:
             return web.json_response(
                 {"results": [], "tag_count": 0, "error": "Query too long"}
             )
         mode = str(data.get("mode", "tag")).lower()
+        if mode not in {"tag", "wildcard", "wildcard_contents"}:
+            mode = "tag"
         limit_cap = 500 if mode in {"wildcard", "wildcard_contents"} else 100
-        limit = min(data.get("limit", 20), limit_cap)
-        tag_file = data.get(
-            "tag_file"
-        )  # Will use DEFAULT_TAG_FILE in ensure_database_loaded if None
-
-        # Normalize extra_files: must be a list of strings
-        extra_files = data.get("extra_files")
-        if extra_files is None:
-            extra_files = ["extra-quality-tags.csv"]
-        elif isinstance(extra_files, str):
-            extra_files = [extra_files]
-        elif not isinstance(extra_files, list):
-            extra_files = ["extra-quality-tags.csv"]
-
-        search_aliases = data.get("search_aliases", True)
+        limit = _coerce_limit(data.get("limit", 20), default=20, cap=limit_cap)
+        tag_file = _normalize_tag_filename(data.get("tag_file"), DEFAULT_TAG_FILE)
+        extra_files = _normalize_extra_files(data.get("extra_files"))
+        search_aliases = _coerce_bool(data.get("search_aliases", True), default=True)
 
         if mode == "wildcard":
             db = get_wildcard_database()
@@ -560,8 +675,8 @@ if _HAS_SERVER and PromptServer:
 
         if mode == "wildcard_contents":
             db = get_wildcard_database()
-            wildcard_name = str(data.get("wildcard_name", ""))
-            content_query = str(data.get("content_query", ""))
+            wildcard_name = _coerce_text(data.get("wildcard_name", ""))
+            content_query = _coerce_text(data.get("content_query", ""))
             results = db.get_contents(
                 wildcard_name=wildcard_name,
                 content_query=content_query,

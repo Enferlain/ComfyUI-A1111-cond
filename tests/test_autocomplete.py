@@ -1,4 +1,5 @@
 import unittest
+import csv
 import sys
 import tempfile
 from pathlib import Path
@@ -7,6 +8,25 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from api.autocomplete import TagDatabase, WildcardDatabase
+
+
+DATA_DIR = Path(__file__).parent.parent / "data" / "tags"
+
+
+def load_rows_from_real_csv(filename, tag_names):
+    wanted = set(tag_names)
+    rows = {}
+    with (DATA_DIR / filename).open("r", encoding="utf-8", errors="replace", newline="") as handle:
+        reader = csv.reader(handle)
+        for row in reader:
+            if len(row) >= 3 and row[0] in wanted:
+                rows[row[0]] = row
+                if len(rows) == len(wanted):
+                    break
+    missing = wanted.difference(rows)
+    if missing:
+        raise AssertionError(f"Missing matrix rows in {filename}: {sorted(missing)}")
+    return [rows[name] for name in tag_names]
 
 
 class TestAutocomplete(unittest.TestCase):
@@ -63,6 +83,124 @@ class TestAutocomplete(unittest.TestCase):
         self.assertEqual(self.db.search(["1girl"]), [])
         self.assertEqual(self.db.search("1girl", limit="bad"), self.db.search("1girl"))
         self.assertEqual(self.db.search("1girl", limit=-5), [])
+
+    def test_short_queries_keep_contains_fallback(self):
+        results = self.db.search("rl")
+        self.assertEqual(results[0]["name"], "1girl")
+
+    def test_long_queries_keep_contains_fallback(self):
+        results = self.db.search("ist_")
+        self.assertEqual(results[0]["name"], "artist_name")
+
+    def test_substring_query_finds_middle_of_tag(self):
+        results = self.db.search("last_name")
+        self.assertEqual(results[0]["name"], "first_name_last_name")
+
+    def test_contains_fallback_can_be_disabled(self):
+        self.assertEqual(self.db.search("ist_", contains_fallback=False), [])
+
+
+class TestAutocompleteUseCaseMatrix(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp_dir = tempfile.TemporaryDirectory()
+        cls.matrix_csv = Path(cls.temp_dir.name) / "matrix_tags.csv"
+
+        rows = []
+        rows.extend(
+            load_rows_from_real_csv(
+                "danbooru.csv",
+                [
+                    "1girl",
+                    "looking_at_viewer",
+                    "open_mouth",
+                    "short_hair",
+                    "twintails",
+                    "school_uniform",
+                    "depth_of_field",
+                    "holding_hands",
+                ],
+            )
+        )
+        rows.extend(
+            load_rows_from_real_csv(
+                "e621.csv",
+                [
+                    "anthro",
+                    "hi_res",
+                    "male",
+                    "genitals",
+                    "clothing",
+                    "hair",
+                ],
+            )
+        )
+
+        with cls.matrix_csv.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerows(rows)
+
+        cls.db = TagDatabase()
+        cls.db.load_csv(cls.matrix_csv)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp_dir.cleanup()
+
+    def assertPopupContains(self, query, expected_name, limit=20, search_aliases=True):
+        results = self.db.search(query, limit=limit, search_aliases=search_aliases)
+        names = [result["name"] for result in results]
+        self.assertIn(
+            expected_name,
+            names,
+            msg=f"{expected_name!r} not found for query {query!r}; got {names}",
+        )
+
+    def test_likely_typing_prefixes_show_expected_tags(self):
+        cases = [
+            ("1g", "1girl"),
+            ("look", "looking_at_viewer"),
+            ("open", "open_mouth"),
+            ("short", "short_hair"),
+            ("twin", "twintails"),
+            ("school", "school_uniform"),
+            ("anth", "anthro"),
+            ("gen", "genitals"),
+            ("cloth", "clothing"),
+        ]
+        for query, expected_name in cases:
+            with self.subTest(query=query, expected_name=expected_name):
+                self.assertPopupContains(query, expected_name)
+
+    def test_likely_typing_aliases_show_canonical_tags(self):
+        cases = [
+            ("sole_female", "1girl"),
+            ("mouth_open", "open_mouth"),
+            ("short-hair", "short_hair"),
+            ("high_res", "hi_res"),
+            ("1boy", "male"),
+            ("clothes", "clothing"),
+        ]
+        for query, expected_name in cases:
+            with self.subTest(query=query, expected_name=expected_name):
+                self.assertPopupContains(query, expected_name)
+
+    def test_likely_typing_middle_fragments_show_expected_tags(self):
+        cases = [
+            ("at_viewer", "looking_at_viewer"),
+            ("mouth", "open_mouth"),
+            ("uniform", "school_uniform"),
+            ("of_field", "depth_of_field"),
+            ("hands", "holding_hands"),
+            ("itals", "genitals"),
+        ]
+        for query, expected_name in cases:
+            with self.subTest(query=query, expected_name=expected_name):
+                self.assertPopupContains(query, expected_name)
+
+    def test_alias_toggle_removes_alias_only_matches(self):
+        results = self.db.search("mouth_open", search_aliases=False)
+        self.assertNotIn("open_mouth", [result["name"] for result in results])
 
 
 class TestWildcardAutocomplete(unittest.TestCase):

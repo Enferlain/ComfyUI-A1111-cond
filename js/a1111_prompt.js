@@ -249,7 +249,6 @@ app.registerExtension({
         }
 
         setPreviewText(this, textValue, currentText);
-        setPreviewExpanded(this, false);
         renderPreview(this);
       }
 

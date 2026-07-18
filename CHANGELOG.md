@@ -25,6 +25,7 @@ Rules:
 - **Autocomplete Ranking**: Frequent and recently selected entries now have stronger ranking influence while exact matches remain prioritized.
 - **Effective Prompt Restore**: The resolved prompt preview is now stored with the workflow and shown behind a compact toggle so dragged-back images can reveal the prompt that was actually encoded without shrinking the main prompt field.
 - **Wildcard Completion Text**: Nested wildcard autocomplete now inserts the leaf name when it is unambiguous, falling back to the full path only for duplicate leaf names.
+- **Autocomplete Warm-Up**: The frontend now starts loading the tag database before the first typed autocomplete request, and contains searches use lazy candidate indexing to preserve substring results without repeated full-database scans.
 
 ### Fixed
 
@@ -38,6 +39,7 @@ Rules:
 - Fixed resolved prompt preview collapse/expand layout so the preview stays inside the node bounds after toggling.
 - Fixed token sequence boundary markers disappearing for wildcard-estimated counts and later sequence cutoffs.
 - Hardened resolved prompt preview toggles so restored or rebuilt widgets keep a working click handler and stray input events do not collapse an unchanged preview.
+- Fixed scheduled prompt padding being written back into the global encoded prompt cache.
 
 ## [Unreleased] - 2026-04-22
 

@@ -8,6 +8,7 @@ Provides tag autocomplete functionality with support for:
 """
 
 import csv
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -152,6 +153,7 @@ class TagDatabase:
         self._tags: List[TagEntry] = []
         self._alias_map: Dict[str, TagEntry] = {}  # alias -> canonical tag
         self._prefix_index: Dict[str, List[Tuple[TagEntry, Optional[str], str]]] = {}
+        self._contains_index: Dict[str, List[Tuple[TagEntry, Optional[str], str]]] = {}
         self._loaded = False
         self._current_files: List[str] = []
 
@@ -176,6 +178,32 @@ class TagDatabase:
                 (tag, matched_alias, normalized)
             )
 
+    def _get_contains_index_key(self, query: str) -> str:
+        return query[: min(3, len(query))]
+
+    def _get_contains_candidates(
+        self, query: str
+    ) -> List[Tuple[TagEntry, Optional[str], str]]:
+        key = self._get_contains_index_key(query)
+        if not key:
+            return []
+
+        if key not in self._contains_index:
+            candidates: List[Tuple[TagEntry, Optional[str], str]] = []
+            for tag in self._tags:
+                if key in tag.search_text:
+                    candidates.append((tag, None, tag.search_text))
+            for alias_lower, tag in self._alias_map.items():
+                if key in alias_lower:
+                    original_alias = next(
+                        (a for a in tag.aliases if a.lower() == alias_lower),
+                        alias_lower,
+                    )
+                    candidates.append((tag, original_alias, alias_lower))
+            self._contains_index[key] = candidates
+
+        return self._contains_index[key]
+
     def load_csv(self, filepath: Path, append: bool = False) -> int:
         """
         Load tags from a CSV file.
@@ -195,6 +223,7 @@ class TagDatabase:
             self._alias_map = {}
             self._prefix_index = {}
             self._current_files = []
+        self._contains_index = {}
 
         if not filepath.exists():
             print(f"[Autocomplete] Tag file not found: {filepath}")
@@ -266,7 +295,11 @@ class TagDatabase:
         return total
 
     def search(
-        self, query: str, limit: int = 20, search_aliases: bool = True
+        self,
+        query: str,
+        limit: int = 20,
+        search_aliases: bool = True,
+        contains_fallback: bool = True,
     ) -> List[Dict]:
         """
         Search for tags matching the query.
@@ -308,14 +341,7 @@ class TagDatabase:
             results.append((score, tag, matched_alias))
             seen_tags.add(tag.name)
 
-        prefix_key = query_lower[: min(3, len(query_lower))]
-        for tag, matched_alias, matched_text in self._prefix_index.get(prefix_key, []):
-            if matched_alias and not search_aliases:
-                continue
-            if matched_text == query_lower or matched_text.startswith(query_lower):
-                add_result(tag, matched_alias, matched_text)
-
-        if len(results) >= limit:
+        def format_results() -> List[Dict]:
             results.sort(key=lambda x: (-x[0], -x[1].count))
             output = []
             for _, tag, matched_alias in results[:limit]:
@@ -325,38 +351,47 @@ class TagDatabase:
                 output.append(entry)
             return output
 
-        # Search by tag name
-        for tag in self._tags:
-            if tag.name in seen_tags:
+        prefix_key = query_lower[: min(3, len(query_lower))]
+        for tag, matched_alias, matched_text in self._prefix_index.get(prefix_key, []):
+            if matched_alias and not search_aliases:
                 continue
-            if query_lower in tag.search_text:
-                add_result(tag, None, tag.search_text)
+            if matched_text == query_lower or matched_text.startswith(query_lower):
+                add_result(tag, matched_alias, matched_text)
 
-        # Search by aliases
-        if search_aliases:
-            for alias_lower, tag in self._alias_map.items():
+        if len(results) >= limit:
+            return format_results()
+
+        if not contains_fallback:
+            return format_results()
+
+        if len(query_lower) >= 2:
+            candidates = self._get_contains_candidates(query_lower)
+            for tag, matched_alias, matched_text in candidates:
+                if matched_alias and not search_aliases:
+                    continue
+                if query_lower in matched_text:
+                    add_result(tag, matched_alias, matched_text)
+        else:
+            # Backend-only fallback for one-character API searches. The frontend
+            # starts at two characters, where the lazy contains index applies.
+            for tag in self._tags:
                 if tag.name in seen_tags:
                     continue
-                if query_lower in alias_lower:
-                    # Find the original case alias
-                    original_alias = next(
-                        (a for a in tag.aliases if a.lower() == alias_lower),
-                        alias_lower,
-                    )
-                    add_result(tag, original_alias, alias_lower)
+                if query_lower in tag.search_text:
+                    add_result(tag, None, tag.search_text)
 
-        # Sort by: score (desc), then post count (desc)
-        results.sort(key=lambda x: (-x[0], -x[1].count))
+            if search_aliases:
+                for alias_lower, tag in self._alias_map.items():
+                    if tag.name in seen_tags:
+                        continue
+                    if query_lower in alias_lower:
+                        original_alias = next(
+                            (a for a in tag.aliases if a.lower() == alias_lower),
+                            alias_lower,
+                        )
+                        add_result(tag, original_alias, alias_lower)
 
-        # Format results
-        output = []
-        for _, tag, matched_alias in results[:limit]:
-            entry = tag.to_dict()
-            if matched_alias:
-                entry["matched_alias"] = matched_alias
-            output.append(entry)
-
-        return output
+        return format_results()
 
 
 class WildcardDatabase:
@@ -543,6 +578,10 @@ class WildcardDatabase:
 # Global database instance (lazy loaded)
 _database = TagDatabase()
 _wildcard_database = WildcardDatabase(WILDCARDS_DIR)
+_database_load_lock = threading.Lock()
+_database_loading = False
+_database_load_error: Optional[str] = None
+_database_loading_files: List[str] = []
 
 
 def get_database() -> TagDatabase:
@@ -553,6 +592,56 @@ def get_database() -> TagDatabase:
 def get_wildcard_database() -> WildcardDatabase:
     """Get the global wildcard database instance."""
     return _wildcard_database
+
+
+def _build_tag_file_list(
+    tag_file: str = DEFAULT_TAG_FILE,
+    extra_files: Optional[List[str]] = None,
+) -> List[str]:
+    safe_tag_file = _normalize_tag_filename(tag_file, DEFAULT_TAG_FILE)
+    files_to_load = [safe_tag_file]
+    if extra_files:
+        files_to_load.extend(_normalize_extra_files(extra_files))
+    return [filename for filename in files_to_load if filename]
+
+
+def _resolve_tag_filepaths(files_to_load: List[str]) -> List[Path]:
+    filepaths = []
+
+    for filename in files_to_load:
+        # Try main data directory first
+        filepath = DATA_DIR / filename
+
+        # Fall back to reference directory
+        if not filepath.exists():
+            ref_path = (
+                Path(__file__).parent.parent
+                / "autocomplete_reference"
+                / "a1111-sd-webui-tagcomplete"
+                / "tags"
+                / filename
+            )
+            if ref_path.exists():
+                filepath = ref_path
+
+        if filepath.exists():
+            filepaths.append(filepath)
+        else:
+            print(f"[Autocomplete] Warning: Tag file not found: {filename}")
+
+    return filepaths
+
+
+def get_database_status() -> Dict:
+    db = get_database()
+    return {
+        "loaded": db.is_loaded,
+        "loading": _database_loading,
+        "load_error": _database_load_error,
+        "tag_count": db.tag_count,
+        "current_files": db._current_files,
+        "loading_files": _database_loading_files,
+    }
 
 
 def ensure_database_loaded(
@@ -569,46 +658,74 @@ def ensure_database_loaded(
     Returns:
         The loaded TagDatabase instance
     """
+    global _database_loading, _database_load_error, _database_loading_files
     db = get_database()
 
-    # Build list of files to load
-    safe_tag_file = _normalize_tag_filename(tag_file, DEFAULT_TAG_FILE)
-    files_to_load = [safe_tag_file]
-    if extra_files:
-        files_to_load.extend(_normalize_extra_files(extra_files))
+    files_to_load = _build_tag_file_list(tag_file, extra_files)
 
     # Check if we need to reload
     needs_reload = not db.is_loaded or set(db._current_files) != set(files_to_load)
+    if not needs_reload:
+        if _database_loading and set(_database_loading_files) == set(files_to_load):
+            _database_loading = False
+            _database_loading_files = []
+        return db
 
-    if needs_reload:
-        # Find and load all tag files
-        filepaths = []
+    with _database_load_lock:
+        needs_reload = not db.is_loaded or set(db._current_files) != set(files_to_load)
+        if not needs_reload:
+            if _database_loading and set(_database_loading_files) == set(files_to_load):
+                _database_loading = False
+                _database_loading_files = []
+            return db
 
-        for filename in files_to_load:
-            # Try main data directory first
-            filepath = DATA_DIR / filename
+        _database_loading = True
+        _database_load_error = None
+        _database_loading_files = files_to_load[:]
 
-            # Fall back to reference directory
-            if not filepath.exists():
-                ref_path = (
-                    Path(__file__).parent.parent
-                    / "autocomplete_reference"
-                    / "a1111-sd-webui-tagcomplete"
-                    / "tags"
-                    / filename
-                )
-                if ref_path.exists():
-                    filepath = ref_path
-
-            if filepath.exists():
-                filepaths.append(filepath)
-            else:
-                print(f"[Autocomplete] Warning: Tag file not found: {filename}")
-
-        if filepaths:
-            db.load_multiple(filepaths)
+        try:
+            filepaths = _resolve_tag_filepaths(files_to_load)
+            if filepaths:
+                db.load_multiple(filepaths)
+        except Exception as exc:
+            _database_load_error = str(exc)
+            raise
+        finally:
+            _database_loading = False
+            _database_loading_files = []
 
     return db
+
+
+def start_database_warmup(
+    tag_file: str = DEFAULT_TAG_FILE,
+    extra_files: Optional[List[str]] = None,
+) -> bool:
+    global _database_loading, _database_load_error, _database_loading_files
+    files_to_load = _build_tag_file_list(tag_file, extra_files)
+    db = get_database()
+    with _database_load_lock:
+        if db.is_loaded and set(db._current_files) == set(files_to_load):
+            return False
+        if _database_loading:
+            return False
+        _database_loading = True
+        _database_load_error = None
+        _database_loading_files = files_to_load[:]
+
+    def warmup_worker():
+        try:
+            ensure_database_loaded(tag_file, extra_files=extra_files)
+        except Exception as exc:
+            print(f"[Autocomplete] Warm-up failed: {exc}")
+
+    thread = threading.Thread(
+        target=warmup_worker,
+        name="A1111AutocompleteWarmup",
+        daemon=True,
+    )
+    thread.start()
+    return True
 
 
 # Register API endpoints (only if server is available)
@@ -665,6 +782,9 @@ if _HAS_SERVER and PromptServer:
         tag_file = _normalize_tag_filename(data.get("tag_file"), DEFAULT_TAG_FILE)
         extra_files = _normalize_extra_files(data.get("extra_files"))
         search_aliases = _coerce_bool(data.get("search_aliases", True), default=True)
+        contains_fallback = _coerce_bool(
+            data.get("contains_fallback", True), default=True
+        )
 
         if mode == "wildcard":
             db = get_wildcard_database()
@@ -697,7 +817,12 @@ if _HAS_SERVER and PromptServer:
         )
 
         # Perform search
-        results = db.search(query, limit=limit, search_aliases=search_aliases)
+        results = db.search(
+            query,
+            limit=limit,
+            search_aliases=search_aliases,
+            contains_fallback=contains_fallback,
+        )
 
         return web.json_response(
             {"results": results, "tag_count": db.tag_count, "mode": "tag"}
@@ -716,13 +841,26 @@ if _HAS_SERVER and PromptServer:
             }
         """
         db = get_database()
-        return web.json_response(
-            {
-                "loaded": db.is_loaded,
-                "tag_count": db.tag_count,
-                "current_files": db._current_files,
-            }
+        return web.json_response(get_database_status())
+
+    @PromptServer.instance.routes.post("/a1111_prompt/autocomplete/warmup")
+    async def autocomplete_warmup(request):
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+
+        if not isinstance(data, dict):
+            data = {}
+
+        tag_file = _normalize_tag_filename(data.get("tag_file"), DEFAULT_TAG_FILE)
+        extra_files = _normalize_extra_files(data.get("extra_files"))
+        started = start_database_warmup(
+            tag_file or DEFAULT_TAG_FILE, extra_files=extra_files
         )
+        status = get_database_status()
+        status["started"] = started
+        return web.json_response(status)
 
     @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/files")
     async def list_tag_files(request):

@@ -366,11 +366,6 @@ class A1111PromptNode:
                 # Update run mapping with padded version
                 run_embeddings[prompt_text] = (cond, pooled)
 
-                # ALSO update global cache so we don't re-pad in same run if it's used again
-                # (though unique_prompts already handled that, it's good for static path too)
-                key = self._get_cache_key(clip, prompt_text, normalization)
-                self._encoded_cache[key] = (cond, pooled)
-
                 padded_count += 1
                 if debug:
                     logger.info(

@@ -23,6 +23,7 @@ let currentResults = [];
 const AUTOCOMPLETE_CACHE_MAX = 80;
 const AUTOCOMPLETE_CACHE_TTL_MS = 5 * 60 * 1000;
 const autocompleteCache = new Map();
+let autocompleteWarmupStarted = false;
 
 // Frequency tracking
 const FREQUENCY_STORAGE_KEY = "a1111_tag_frequency";
@@ -298,6 +299,22 @@ function getCachedPrefixSuggestions(request, limit = 20) {
   }
 
   return null;
+}
+
+function warmupAutocompleteDatabase() {
+  if (autocompleteWarmupStarted) {
+    return;
+  }
+  autocompleteWarmupStarted = true;
+
+  fetch("/a1111_prompt/autocomplete/warmup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "tag" }),
+  }).catch((error) => {
+    autocompleteWarmupStarted = false;
+    console.warn("[A1111 Autocomplete] Warm-up request failed:", error);
+  });
 }
 
 /**
@@ -982,6 +999,10 @@ function getAutocompleteRequest(word) {
 app.registerExtension({
   name: "A1111PromptNode.Autocomplete",
 
+  setup() {
+    warmupAutocompleteDatabase();
+  },
+
   async nodeCreated(node) {
     if (
       node.comfyClass !== "A1111Prompt" &&
@@ -991,6 +1012,7 @@ app.registerExtension({
 
     const textWidget = node.widgets?.find((w) => w.name === "text");
     if (!textWidget) return;
+    warmupAutocompleteDatabase();
 
     let boundTextarea = null;
     let monitorFrame = null;

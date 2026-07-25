@@ -10,6 +10,21 @@ Rules:
 - Keep proper track of days for where entries should go
 - Be concise but mention all changes without necessarily detailing each one
 
+## [Unreleased] - 2026-07-25
+
+### Fixed
+
+- Fixed the resolved prompt toggle occasionally rendering outside the node and becoming unclickable by using ComfyUI's current widget visibility and layout APIs.
+- Made wildcard autocomplete deterministic by loading the complete path manifest once and filtering it locally, eliminating delayed and incomplete cached-prefix results.
+- Reused the startup wildcard path catalog during prompt expansion, eliminating repeated full-tree scans for concise unique wildcard names.
+
+## [Unreleased] - 2026-07-23
+
+### Fixed
+
+- Fixed resolved prompt preview state resetting after each generation; the preview now stays expanded or collapsed according to the user's last toggle.
+- Hardened resolved prompt preview rendering so preview widget failures do not break autocomplete or the rest of the node frontend.
+
 ## [Unreleased] - 2026-06-15
 
 ### Added

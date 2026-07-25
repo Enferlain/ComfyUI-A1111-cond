@@ -29,13 +29,41 @@ app.registerExtension({
   name: "A1111PromptNode.ShowText",
   async beforeRegisterNodeDef(nodeType, nodeData, app) {
     if (nodeData.name === "A1111Prompt" || nodeData.name === "A1111PromptNegative") {
-      function resizeNode(node) {
+      function refreshNodeLayout(node) {
         requestAnimationFrame(() => {
-          const sz = node.computeSize();
-          if (sz[0] < node.size[0]) sz[0] = node.size[0];
-          node.onResize?.(sz);
-          app.graph.setDirtyCanvas(true, false);
+          try {
+            node.onResize?.(node.size);
+            node.setDirtyCanvas?.(true, true);
+            app.graph?.setDirtyCanvas?.(true, true);
+          } catch (error) {
+            console.error("[A1111 Prompt] Failed to refresh preview layout", error);
+          }
         });
+      }
+
+      function setHiddenWidgetLayout(widget, hidden) {
+        if (hidden) {
+          if (!Object.hasOwn(widget, "_a1111OriginalComputeLayoutSize")) {
+            widget._a1111OriginalComputeLayoutSize = widget.computeLayoutSize;
+          }
+          widget.computeLayoutSize = () => ({
+            minHeight: 0,
+            minWidth: 0,
+            maxHeight: 0,
+            maxWidth: 0,
+          });
+          return;
+        }
+
+        if (!Object.hasOwn(widget, "_a1111OriginalComputeLayoutSize")) {
+          return;
+        }
+        if (widget._a1111OriginalComputeLayoutSize) {
+          widget.computeLayoutSize = widget._a1111OriginalComputeLayoutSize;
+        } else {
+          delete widget.computeLayoutSize;
+        }
+        delete widget._a1111OriginalComputeLayoutSize;
       }
 
       function getCurrentText(node) {
@@ -47,7 +75,6 @@ app.registerExtension({
       const PREVIEW_EXPANDED_PROPERTY = "a1111_resolved_prompt_expanded";
       const PREVIEW_SOURCE_PROPERTY = "a1111_resolved_prompt_source";
       const PREVIEW_WIDGET_HEIGHT = 120;
-      const HIDDEN_WIDGET_HEIGHT = -4;
 
       function getPreviewText(node) {
         return node.properties?.[PREVIEW_PROPERTY] || "";
@@ -103,31 +130,27 @@ app.registerExtension({
 
       function setWidgetHidden(widget, hidden) {
         if (!widget) return;
-        if (!widget._a1111OriginalComputeSize) {
-          widget._a1111OriginalComputeSize = widget.computeSize;
+        if (Object.hasOwn(widget, "_a1111OriginalComputeSize")) {
+          if (widget._a1111OriginalComputeSize) {
+            widget.computeSize = widget._a1111OriginalComputeSize;
+          } else {
+            delete widget.computeSize;
+          }
+          delete widget._a1111OriginalComputeSize;
         }
-
-        if (hidden) {
-          widget.computeSize = () => [0, HIDDEN_WIDGET_HEIGHT];
-          if (widget.inputEl) widget.inputEl.style.display = "none";
-        } else {
-          widget.computeSize = widget._a1111OriginalComputeSize;
-          if (widget.inputEl) widget.inputEl.style.display = "block";
-        }
+        widget.hidden = hidden;
+        setHiddenWidgetLayout(widget, hidden);
+        if (widget.inputEl) widget.inputEl.style.display = hidden ? "none" : "";
       }
 
       function setPreviewWidgetHidden(widget, hidden) {
         if (!widget) return;
-        if (hidden) {
-          widget.computeSize = () => [0, HIDDEN_WIDGET_HEIGHT];
-          if (widget.inputEl) widget.inputEl.style.display = "none";
-          return;
-        }
-
-        widget.computeSize = () => [0, PREVIEW_WIDGET_HEIGHT];
+        delete widget.computeSize;
+        widget.hidden = hidden;
+        setHiddenWidgetLayout(widget, hidden);
         if (widget.inputEl) {
-          widget.inputEl.style.display = "block";
-          widget.inputEl.style.height = `${PREVIEW_WIDGET_HEIGHT - 16}px`;
+          widget.inputEl.style.display = hidden ? "none" : "";
+          widget.inputEl.style.height = "100%";
           widget.inputEl.style.boxSizing = "border-box";
           widget.inputEl.style.border = "1px solid var(--border-color, #4b4664)";
           widget.inputEl.style.borderRadius = "4px";
@@ -141,12 +164,13 @@ app.registerExtension({
         if (!toggleWidget) {
           toggleWidget = node.addWidget(
             "button",
-            "resolved prompt",
+            "_prompt_display_toggle",
             "Show",
             () => {}
           );
           toggleWidget.serialize = false;
         }
+        toggleWidget.name = "_prompt_display_toggle";
         toggleWidget._a1111PreviewToggle = true;
         toggleWidget.serialize = false;
         toggleWidget.type = "button";
@@ -173,6 +197,10 @@ app.registerExtension({
         }
 
         displayWidget.serialize = false;
+        displayWidget.type = "customtext";
+        displayWidget.options ??= {};
+        displayWidget.options.getMinHeight = () => 0;
+        displayWidget.options.getMaxHeight = () => PREVIEW_WIDGET_HEIGHT;
         if (displayWidget.inputEl) {
           displayWidget.inputEl.readOnly = true;
           displayWidget.inputEl.style.opacity = "0.7";
@@ -184,21 +212,25 @@ app.registerExtension({
         return displayWidget;
       }
 
-      function hideDisplayWidget(node, displayWidget, clearValue = true) {
-        displayWidget.type = "converted-widget";
+      function hideDisplayWidget(displayWidget, clearValue = true) {
         setPreviewWidgetHidden(displayWidget, true);
         if (clearValue) displayWidget.value = "";
-        resizeNode(node);
       }
 
-      function showDisplayWidget(node, displayWidget, textValue) {
-        displayWidget.type = "customtext";
+      function showDisplayWidget(displayWidget, textValue) {
         setPreviewWidgetHidden(displayWidget, false);
         displayWidget.value = textValue;
-        resizeNode(node);
       }
 
       function renderPreview(node) {
+        try {
+          renderPreviewInner(node);
+        } catch (error) {
+          console.error("[A1111 Prompt] Failed to render resolved prompt preview", error);
+        }
+      }
+
+      function renderPreviewInner(node) {
         const previewText = getPreviewText(node);
         const currentText = getCurrentText(node);
         const toggleWidget = node.widgets?.find(
@@ -211,8 +243,8 @@ app.registerExtension({
         if (!previewText || previewText === currentText) {
           if (previewText === currentText) setPreviewText(node, "");
           if (toggleWidget) setWidgetHidden(toggleWidget, true);
-          if (displayWidget) hideDisplayWidget(node, displayWidget, true);
-          resizeNode(node);
+          if (displayWidget) hideDisplayWidget(displayWidget, true);
+          refreshNodeLayout(node);
           return;
         }
 
@@ -225,12 +257,12 @@ app.registerExtension({
         setWidgetHidden(visibleToggle, false);
 
         if (isExpanded) {
-          showDisplayWidget(node, ensureDisplayWidget(node), previewText);
+          showDisplayWidget(ensureDisplayWidget(node), previewText);
         } else if (displayWidget) {
-          hideDisplayWidget(node, displayWidget, false);
+          hideDisplayWidget(displayWidget, false);
         }
 
-        resizeNode(node);
+        refreshNodeLayout(node);
       }
 
       /**

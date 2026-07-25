@@ -13,8 +13,10 @@ from __future__ import annotations
 import logging
 import random
 import re
+import threading
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 logger = logging.getLogger("A1111PromptNode")
 
@@ -43,6 +45,51 @@ def _normalize_wildcard_name(name: str) -> str:
     return name.strip().replace("\\", ".").replace("/", ".").strip(".").lower()
 
 
+@dataclass(frozen=True)
+class WildcardFileIndex:
+    files: Tuple[Path, ...]
+    by_name: Dict[str, Path]
+    by_leaf: Dict[str, Tuple[Path, ...]]
+
+
+_wildcard_index_cache: Dict[Path, WildcardFileIndex] = {}
+_wildcard_index_lock = threading.Lock()
+
+
+def get_wildcard_file_index(
+    wildcards_dir: Optional[str | Path] = None,
+    refresh: bool = False,
+) -> WildcardFileIndex:
+    base_dir = _get_wildcards_dir(
+        str(wildcards_dir) if wildcards_dir is not None else None
+    ).resolve()
+
+    with _wildcard_index_lock:
+        cached = _wildcard_index_cache.get(base_dir)
+        if cached is not None and not refresh:
+            return cached
+
+        files = tuple(_iter_wildcard_files(base_dir))
+        by_name: Dict[str, Path] = {}
+        leaf_lists: Dict[str, List[Path]] = {}
+        for file_path in files:
+            normalized_name = _normalize_wildcard_name(
+                _display_name_for_file(file_path, base_dir)
+            )
+            by_name.setdefault(normalized_name, file_path)
+            leaf_lists.setdefault(file_path.stem.lower(), []).append(file_path)
+
+        index = WildcardFileIndex(
+            files=files,
+            by_name=by_name,
+            by_leaf={
+                leaf_name: tuple(paths) for leaf_name, paths in leaf_lists.items()
+            },
+        )
+        _wildcard_index_cache[base_dir] = index
+        return index
+
+
 def _resolve_wildcard_file(
     wildcard_name: str, wildcards_dir: Optional[str] = None
 ) -> Optional[Path]:
@@ -58,15 +105,12 @@ def _resolve_wildcard_file(
     if direct_path.is_file():
         return direct_path
 
-    for file_path in _iter_wildcard_files(base_dir):
-        if _normalize_wildcard_name(_display_name_for_file(file_path, base_dir)) == normalized_name:
-            return file_path
+    index = get_wildcard_file_index(base_dir)
+    indexed_path = index.by_name.get(normalized_name)
+    if indexed_path is not None:
+        return indexed_path
 
-    leaf_matches = [
-        file_path
-        for file_path in _iter_wildcard_files(base_dir)
-        if file_path.stem.lower() == normalized_name
-    ]
+    leaf_matches = index.by_leaf.get(normalized_name, ())
     if len(leaf_matches) == 1:
         return leaf_matches[0]
     if len(leaf_matches) > 1:

@@ -7,10 +7,16 @@ Provides tag autocomplete functionality with support for:
 - Post count sorting with optional frequency boosting
 """
 
+import asyncio
 import csv
 import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+try:
+    from ..parser.wildcards import get_wildcard_file_index
+except ImportError:
+    from parser.wildcards import get_wildcard_file_index
 
 # Conditional server import
 try:
@@ -37,7 +43,7 @@ DATA_DIR = Path(__file__).parent.parent / "data" / "tags"
 WILDCARDS_DIR = Path(__file__).parent.parent / "data" / "wildcards"
 
 # Default tag file to use if not specified (danbooru.csv is default)
-DEFAULT_TAG_FILE = "danbooru_e621_merged_2026-03-01_pt20-ia-dd-ed-spc.csv"
+DEFAULT_TAG_FILE = "danbooru.csv"
 
 
 def _coerce_text(value) -> str:
@@ -402,6 +408,7 @@ class WildcardDatabase:
         self._entries: List[WildcardEntry] = []
         self._entry_map: Dict[str, List[WildcardEntry]] = {}
         self._leaf_counts: Dict[str, int] = {}
+        self._load_lock = threading.Lock()
         self._loaded = False
 
     @property
@@ -413,19 +420,25 @@ class WildcardDatabase:
         return len(self._entries)
 
     def load(self) -> int:
-        self._entries = []
-        self._entry_map = {}
-        self._leaf_counts = {}
+        with self._load_lock:
+            return self._load_unlocked()
 
+    def _load_unlocked(self) -> int:
         if not self._wildcards_dir.exists():
+            self._entries = []
+            self._entry_map = {}
+            self._leaf_counts = {}
             self._loaded = True
             return 0
 
+        entries: List[WildcardEntry] = []
         folder_names = set()
-        for path in self._wildcards_dir.rglob("*.txt"):
+        for path in get_wildcard_file_index(
+            self._wildcards_dir, refresh=True
+        ).files:
             relative = path.relative_to(self._wildcards_dir).with_suffix("")
             relative_name = relative.as_posix()
-            self._entries.append(WildcardEntry(relative_name, "wildcard_file"))
+            entries.append(WildcardEntry(relative_name, "wildcard_file"))
 
             parts = relative.parts[:-1]
             current_parts = []
@@ -434,21 +447,35 @@ class WildcardDatabase:
                 folder_names.add("/".join(current_parts))
 
         for folder_name in folder_names:
-            self._entries.append(WildcardEntry(folder_name, "wildcard_folder"))
+            entries.append(WildcardEntry(folder_name, "wildcard_folder"))
 
-        self._entries.sort(
+        entries.sort(
             key=lambda entry: (
                 entry.search_text,
                 0 if entry.kind == "wildcard_folder" else 1,
                 len(entry.name),
             )
         )
-        for entry in self._entries:
-            self._entry_map.setdefault(entry.search_text, []).append(entry)
+        entry_map: Dict[str, List[WildcardEntry]] = {}
+        leaf_counts: Dict[str, int] = {}
+        for entry in entries:
+            entry_map.setdefault(entry.search_text, []).append(entry)
             leaf_key = entry.leaf_name.lower()
-            self._leaf_counts[leaf_key] = self._leaf_counts.get(leaf_key, 0) + 1
+            leaf_counts[leaf_key] = leaf_counts.get(leaf_key, 0) + 1
+
+        self._entries = entries
+        self._entry_map = entry_map
+        self._leaf_counts = leaf_counts
         self._loaded = True
-        return len(self._entries)
+        return len(entries)
+
+    def ensure_loaded(self) -> int:
+        if self._loaded:
+            return len(self._entries)
+        with self._load_lock:
+            if not self._loaded:
+                return self._load_unlocked()
+            return len(self._entries)
 
     def _entry_to_dict(self, entry: WildcardEntry) -> Dict:
         completion_name = (
@@ -457,6 +484,11 @@ class WildcardDatabase:
             else entry.name
         )
         return entry.to_dict(completion_name=completion_name)
+
+    def get_manifest(self) -> List[Dict]:
+        """Return every wildcard file and folder for deterministic client search."""
+        self.ensure_loaded()
+        return [self._entry_to_dict(entry) for entry in self._entries]
 
     def _normalize_query(self, query: str) -> str:
         normalized = str(query or "").strip().lower()
@@ -483,7 +515,7 @@ class WildcardDatabase:
 
     def search(self, query: str, limit: int = 20) -> List[Dict]:
         if not self._loaded:
-            self.load()
+            self.ensure_loaded()
 
         limit = _coerce_limit(limit, default=20, cap=500)
         normalized = self._normalize_query(query)
@@ -519,7 +551,7 @@ class WildcardDatabase:
         self, wildcard_name: str, content_query: str = "", limit: int = 50
     ) -> List[Dict]:
         if not self._loaded:
-            self.load()
+            self.ensure_loaded()
 
         limit = _coerce_limit(limit, default=50, cap=500)
         if limit == 0:
@@ -582,6 +614,8 @@ _database_load_lock = threading.Lock()
 _database_loading = False
 _database_load_error: Optional[str] = None
 _database_loading_files: List[str] = []
+_wildcard_warmup_lock = threading.Lock()
+_wildcard_warmup_loading = False
 
 
 def get_database() -> TagDatabase:
@@ -728,8 +762,37 @@ def start_database_warmup(
     return True
 
 
+def start_wildcard_warmup() -> bool:
+    global _wildcard_warmup_loading
+    db = get_wildcard_database()
+
+    with _wildcard_warmup_lock:
+        if db.is_loaded or _wildcard_warmup_loading:
+            return False
+        _wildcard_warmup_loading = True
+
+    def warmup_worker():
+        global _wildcard_warmup_loading
+        try:
+            db.ensure_loaded()
+        except Exception as exc:
+            print(f"[Autocomplete] Wildcard warm-up failed: {exc}")
+        finally:
+            with _wildcard_warmup_lock:
+                _wildcard_warmup_loading = False
+
+    thread = threading.Thread(
+        target=warmup_worker,
+        name="A1111WildcardWarmup",
+        daemon=True,
+    )
+    thread.start()
+    return True
+
+
 # Register API endpoints (only if server is available)
 if _HAS_SERVER and PromptServer:
+    start_wildcard_warmup()
 
     @PromptServer.instance.routes.post("/a1111_prompt/autocomplete")
     async def autocomplete_tags(request):
@@ -828,6 +891,18 @@ if _HAS_SERVER and PromptServer:
             {"results": results, "tag_count": db.tag_count, "mode": "tag"}
         )
 
+    @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/wildcards")
+    async def autocomplete_wildcards(request):
+        db = get_wildcard_database()
+        results = await asyncio.to_thread(db.get_manifest)
+        return web.json_response(
+            {
+                "results": results,
+                "wildcard_count": len(results),
+                "mode": "wildcard_manifest",
+            }
+        )
+
     @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/status")
     async def autocomplete_status(request):
         """
@@ -860,6 +935,9 @@ if _HAS_SERVER and PromptServer:
         )
         status = get_database_status()
         status["started"] = started
+        status["wildcard_started"] = start_wildcard_warmup()
+        status["wildcard_loaded"] = get_wildcard_database().is_loaded
+        status["wildcard_count"] = get_wildcard_database().wildcard_count
         return web.json_response(status)
 
     @PromptServer.instance.routes.get("/a1111_prompt/autocomplete/files")

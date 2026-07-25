@@ -5,3 +5,4 @@ highres,5,5000000,"high_res"
 hat,0,500000,"headwear"
 artist_name,1,100,
 character_name,4,1000,
+first_name_last_name,0,50,

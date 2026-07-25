@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -13,6 +14,7 @@ from parser.wildcards import (
     get_wildcard_options,
     list_available_wildcards,
 )
+from parser import wildcards as wildcards_module
 
 
 class TestWildcards(unittest.TestCase):
@@ -81,6 +83,28 @@ class TestWildcards(unittest.TestCase):
         )
 
         self.assertEqual(expanded, "wide brim hat")
+
+    def test_unique_leaf_resolution_scans_the_tree_only_once(self):
+        self.write_wildcard("nested/first.txt", "one\n")
+        self.write_wildcard("nested/second.txt", "two\n")
+        self.write_wildcard("nested/third.txt", "three\n")
+
+        with patch.object(
+            wildcards_module,
+            "_iter_wildcard_files",
+            wraps=wildcards_module._iter_wildcard_files,
+        ) as iter_files:
+            self.assertEqual(
+                get_wildcard_options("first", str(self.wildcards_dir)), ["one"]
+            )
+            self.assertEqual(
+                get_wildcard_options("second", str(self.wildcards_dir)), ["two"]
+            )
+            self.assertEqual(
+                get_wildcard_options("third", str(self.wildcards_dir)), ["three"]
+            )
+
+        self.assertEqual(iter_files.call_count, 1)
 
     def test_ambiguous_leaf_wildcards_are_left_unchanged(self):
         self.write_wildcard("characters/hats.txt", "beret\n")

@@ -24,6 +24,8 @@ const AUTOCOMPLETE_CACHE_MAX = 80;
 const AUTOCOMPLETE_CACHE_TTL_MS = 5 * 60 * 1000;
 const autocompleteCache = new Map();
 let autocompleteWarmupStarted = false;
+let wildcardManifest = null;
+let wildcardManifestPromise = null;
 
 // Frequency tracking
 const FREQUENCY_STORAGE_KEY = "a1111_tag_frequency";
@@ -315,6 +317,77 @@ function warmupAutocompleteDatabase() {
     autocompleteWarmupStarted = false;
     console.warn("[A1111 Autocomplete] Warm-up request failed:", error);
   });
+}
+
+async function loadWildcardManifest() {
+  if (wildcardManifest) {
+    return wildcardManifest;
+  }
+  if (wildcardManifestPromise) {
+    return wildcardManifestPromise;
+  }
+
+  wildcardManifestPromise = fetch("/a1111_prompt/autocomplete/wildcards")
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Wildcard manifest request failed: ${response.status}`);
+      }
+      const data = await response.json();
+      const results = Array.isArray(data.results) ? data.results : [];
+      results.forEach((entry, index) => {
+        entry._searchText = String(entry.name || "").toLowerCase();
+        entry._manifestOrder = index;
+      });
+      wildcardManifest = results;
+      return wildcardManifest;
+    })
+    .catch((error) => {
+      wildcardManifestPromise = null;
+      console.warn("[A1111 Autocomplete] Wildcard manifest load failed:", error);
+      return null;
+    });
+
+  return wildcardManifestPromise;
+}
+
+function searchWildcardManifest(entries, rawQuery, limit = 200) {
+  const query = normalizeAutocompleteQuery(rawQuery, "wildcard_file");
+  if (!query) {
+    return entries.slice(0, limit);
+  }
+
+  const matches = [];
+  for (const entry of entries) {
+    const searchText = entry._searchText;
+    let relevance = 0;
+    if (searchText === query) {
+      relevance = 3;
+    } else if (searchText.startsWith(query)) {
+      relevance = 2;
+    } else if (searchText.includes(query)) {
+      relevance = 1;
+    } else {
+      continue;
+    }
+    matches.push({ entry, relevance });
+  }
+
+  matches.sort((left, right) => {
+    if (left.relevance !== right.relevance) {
+      return right.relevance - left.relevance;
+    }
+    const leftFolder = left.entry.kind === "wildcard_folder" ? 0 : 1;
+    const rightFolder = right.entry.kind === "wildcard_folder" ? 0 : 1;
+    if (leftFolder !== rightFolder) {
+      return leftFolder - rightFolder;
+    }
+    if (left.entry.name.length !== right.entry.name.length) {
+      return left.entry.name.length - right.entry.name.length;
+    }
+    return left.entry._manifestOrder - right.entry._manifestOrder;
+  });
+
+  return matches.slice(0, limit).map((match) => match.entry);
 }
 
 /**
@@ -825,6 +898,14 @@ export async function fetchTagSuggestions(query, limit = 20, mode = "tag", extra
   if (!query) return [];
   if (!isWildcard && query.length < 2) return [];
   const effectiveLimit = isWildcard ? Math.max(limit, 200) : limit;
+
+  if (mode === "wildcard") {
+    const entries = await loadWildcardManifest();
+    if (entries) {
+      return searchWildcardManifest(entries, query, effectiveLimit);
+    }
+  }
+
   const cached = getCachedSuggestions(query, effectiveLimit, mode, extra);
   if (cached) {
     return cached;
@@ -1001,6 +1082,7 @@ app.registerExtension({
 
   setup() {
     warmupAutocompleteDatabase();
+    loadWildcardManifest();
   },
 
   async nodeCreated(node) {
@@ -1046,7 +1128,10 @@ app.registerExtension({
             return;
           }
 
-          const cachedSuggestions = getCachedPrefixSuggestions(request);
+          const cachedSuggestions =
+            request.mode === "wildcard"
+              ? null
+              : getCachedPrefixSuggestions(request);
           if (cachedSuggestions && cachedSuggestions.length > 0) {
             showAutocompleteSuggestions(
               cachedSuggestions,

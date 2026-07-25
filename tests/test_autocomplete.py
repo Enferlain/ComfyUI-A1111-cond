@@ -232,6 +232,16 @@ class TestWildcardAutocomplete(unittest.TestCase):
         self.assertEqual(results[0]["completion"], "__characters__")
         self.assertEqual(results[0]["kind"], "wildcard_folder")
 
+    def test_wildcard_manifest_contains_every_file_and_folder(self):
+        manifest = self.db.get_manifest()
+        names = {entry["name"] for entry in manifest}
+
+        self.assertEqual(len(manifest), self.db.wildcard_count)
+        self.assertIn("colors", names)
+        self.assertIn("characters", names)
+        self.assertIn("characters/anime", names)
+        self.assertIn("characters/accessories/hats", names)
+
     def test_nested_wildcard_completion_uses_leaf_name(self):
         results = self.db.search("__hats", limit=10)
         self.assertEqual(results[0]["name"], "characters/accessories/hats")

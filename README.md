@@ -35,7 +35,7 @@ pip install lark
 - **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
 - **Wildcard support**: Resolves `__wildcard__` files from `data/wildcards`, including nested wildcard chains and dynamic prompt choices inside wildcard files
-- **TIPO support**: TIPO prompt output can connect directly into the node, and it will show the generated prompt when the node receives it. Should use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to preserve weighting emphasis in the A1111 syntax.
+- **TIPO support**: TIPO prompt output can connect directly into the node, which shows the generated prompt it receives. Use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to expand connected A1111 wildcards before the single TIPO generation pass and preserve weighting emphasis in A1111 syntax.
 
 ### Token Counter
 
@@ -68,7 +68,7 @@ The node displays a **live token count** in the header, showing tokens per 77-to
 The node includes [**A1111-style tag autocomplete**](https://github.com/DominikDoom/a1111-sd-webui-tagcomplete) functionality:
 
 - **Trigger**: Start typing any tag (2+ characters)
-- **Database**: Uses Danbooru/e621 tag databases (~140k tags)
+- **Database**: Uses `danbooru.csv` by default (~140k tags), with additional Danbooru/E621 databases bundled.
 - **Search**: Matches tag names and aliases
 - **Navigation**: Use ↑/↓ arrows, Tab/Enter to select, Escape to close
 - **Color coding**: Tags are colored by type (general, artist, character, etc.)
@@ -81,7 +81,7 @@ The node includes [**A1111-style tag autocomplete**](https://github.com/DominikD
 - Alias support: Type `sole_female` → suggests `1girl`
 - Smart insertion: Automatically adds commas and handles spacing
 - Parenthesis escaping: `name_(artist)` → `name_\(artist\)`
-- Real-time search with 100ms debouncing
+- Real-time search with 50ms debouncing
 - Usage tracking: Tags you use often are prioritized in results
 - Quality tags: Automatically includes `extra-quality-tags.csv` for common quality/style tags
 - Theme-aware: Respects your ComfyUI color scheme
@@ -101,8 +101,9 @@ The node supports **A1111-style wildcard files** stored in `data/wildcards/`.
 **Autocomplete integration:**
 
 - Type `__` to browse wildcard folders and files
-- Selecting a wildcard file inserts `__path/to/file__`
+- Selecting a wildcard file inserts the concise `__leaf__` name when it is unique, or the full `__path/to/file__` when needed to disambiguate duplicate leaf names
 - After selecting a wildcard file, the popup stays open and can show the file's contents for quick follow-up selection
+- The complete wildcard path list is loaded once and filtered locally for consistent typing latency
 
 **Notes:**
 
@@ -110,12 +111,13 @@ The node supports **A1111-style wildcard files** stored in `data/wildcards/`.
 - Blank lines and `#` comment lines are ignored
 - Prompt spacing is normalized after expansion so optional empty branches do not leave doubled spaces behind
 
-**Available tag databases:**
+**Bundled tag databases:**
 
-- `danbooru.csv` - Main Danbooru database (~140k tags)
+- `danbooru.csv` - Default Danbooru database (~140k tags)
 - `e621.csv` - E621 database (furry-focused)
+- `danbooru_e621_merged_*.csv` - Larger merged Danbooru/E621 databases
 - `extra-quality-tags.csv` - Quality and style tags (auto-loaded)
-- Custom CSV files can be added to `data/tags/`
+- Custom CSV files can be added to `data/tags/`; the current autocomplete UI uses the configured backend default and does not expose a database selector
 
 **Frequency Management:**
 Open browser console and use:
@@ -231,7 +233,7 @@ This pack provides **two nodes**:
 
 - **Auto-detection**: The node detects steps from the downstream sampler. If no sampler is connected, step-based syntax (`[a:b:10]`) will raise an error.
 - **Flexibility**: Use percentage syntax (`[a:b:0.5]`) for the most portable prompts.
-- **Effective prompt preview**: When TIPO or wildcards expand the text, the node shows the resolved prompt in the UI so you can see what was actually encoded.
+- **Effective prompt preview**: When TIPO or wildcards expand the text, the node shows the resolved prompt in the UI so you can see what was actually encoded. Its compact toggle preserves the expanded or collapsed state between executions.
 
 ### A1111 Style Prompt (Negative)
 
@@ -351,6 +353,7 @@ Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control e
 
 ## Performance
 
+- **Shared Wildcard Catalog**: Wildcard paths are scanned once during startup and reused by autocomplete and runtime expansion.
 - **Efficient encoding**: Unique prompts are encoded only once and cached using composite keys (CLIP + text + normalization).
 - **GPU Pre-Allocation**: All embeddings are pre-moved to the GPU (`intermediate_device`) during encoding to eliminate device-transfer latency during the sampling loop.
 - **Shared Hook Caching**: The step-swapping hook uses a structural result cache that persists even when the hook is cloned, ensuring zero-overhead for 2nd order samplers like Euler a or DPM++ 2M.

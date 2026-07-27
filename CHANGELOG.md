@@ -15,6 +15,7 @@ Rules:
 ### Fixed
 
 - Fixed the resolved prompt toggle occasionally rendering outside the node and becoming unclickable by using ComfyUI's current widget visibility and layout APIs.
+- Kept the last resolved prompt preview visible while editing the prompt, replacing it only after the next execution.
 - Made wildcard autocomplete deterministic by loading the complete path manifest once and filtering it locally, eliminating delayed and incomplete cached-prefix results.
 - Reused the startup wildcard path catalog during prompt expansion, eliminating repeated full-tree scans for concise unique wildcard names.
 

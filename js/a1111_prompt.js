@@ -80,10 +80,6 @@ app.registerExtension({
         return node.properties?.[PREVIEW_PROPERTY] || "";
       }
 
-      function getPreviewSource(node) {
-        return node.properties?.[PREVIEW_SOURCE_PROPERTY] || "";
-      }
-
       function isPreviewExpanded(node) {
         return Boolean(node.properties?.[PREVIEW_EXPANDED_PROPERTY]);
       }
@@ -232,7 +228,6 @@ app.registerExtension({
 
       function renderPreviewInner(node) {
         const previewText = getPreviewText(node);
-        const currentText = getCurrentText(node);
         const toggleWidget = node.widgets?.find(
           (w) => w._a1111PreviewToggle || w.name === "_prompt_display_toggle"
         );
@@ -240,8 +235,7 @@ app.registerExtension({
           (w) => w.name === "_prompt_display"
         );
 
-        if (!previewText || previewText === currentText) {
-          if (previewText === currentText) setPreviewText(node, "");
+        if (!previewText) {
           if (toggleWidget) setWidgetHidden(toggleWidget, true);
           if (displayWidget) hideDisplayWidget(displayWidget, true);
           refreshNodeLayout(node);
@@ -284,33 +278,6 @@ app.registerExtension({
         renderPreview(this);
       }
 
-      function clearPreviewOnTextEdit(node) {
-        const textWidget = node.widgets?.find((w) => w.name === "text");
-        const textInput = textWidget?.inputEl;
-        if (!textInput || textInput.dataset.a1111PromptPreviewClear === "true") {
-          return;
-        }
-
-        textInput.dataset.a1111PromptPreviewClear = "true";
-        textInput.addEventListener("input", () => {
-          const sourceText = getPreviewSource(node);
-          if (sourceText && getCurrentText(node) === sourceText) {
-            renderPreview(node);
-            return;
-          }
-          if (getPreviewText(node)) {
-            setPreviewText(node, "");
-            renderPreview(node);
-          }
-        });
-      }
-
-      const onNodeCreated = nodeType.prototype.onNodeCreated;
-      nodeType.prototype.onNodeCreated = function () {
-        onNodeCreated?.apply(this, arguments);
-        requestAnimationFrame(() => clearPreviewOnTextEdit(this));
-      };
-
       // Hook into onExecuted to display the prompt after execution
       const onExecuted = nodeType.prototype.onExecuted;
       nodeType.prototype.onExecuted = function (message) {
@@ -322,7 +289,6 @@ app.registerExtension({
       nodeType.prototype.onConfigure = function (info) {
         onConfigure?.apply(this, arguments);
         requestAnimationFrame(() => {
-          clearPreviewOnTextEdit(this);
           const savedPreview = getSavedPreviewValue(this, info);
           if (savedPreview) setPreviewText(this, savedPreview, getSavedPreviewSource(this, info));
           renderPreview(this);

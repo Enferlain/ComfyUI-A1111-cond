@@ -170,6 +170,16 @@ Control when alternation starts or stops:
 | `[as109\|fkey:0.4]`  | as109 until 40%, then start alternating   |
 | `[as109\|fkey::15]`  | Alternate until step 15, then as109       |
 
+> [!TIP]
+> **Matching A1111/Forge multi-evaluation sampler behavior:** A1111/Forge can
+> advance prompt scheduling once per denoiser evaluation rather than once per
+> displayed sampler step. With a sampler that performs two evaluations per
+> step, a 28-step alternation can therefore end around displayed step 14 and
+> settle on its first option. To reproduce that effective result here, use a
+> scheduled cutoff such as `[A|B::0.5]`: alternate for the first half, then
+> keep `A`. A plain `[A|B]` continues across the full ComfyUI denoising
+> schedule.
+
 **Combining with scheduling to lock to a value:**
 
 ```
@@ -343,7 +353,7 @@ The node's `INPUT_TYPES` exposes only `clip`, `text`, `normalization`, and `debu
 
 2. **Automatic Scaling**: Unlike A1111 (where steps are manual), this node provides **automatic scaling**. If you write `[thing:10]` for a 20-step run but later change it to 30 steps, the node will automatically move the transition to step 15 to preserve the 50% relative timing. Use percentage syntax `[thing:0.5]` for the most explicit control.
 
-3. **Visual parity**: While the **prompt schedule** matches A1111 exactly (the same prompt text at each step), the **visual effect** may differ due to architectural differences:
+3. **Visual parity**: This node follows ComfyUI's denoising progress, while A1111/Forge can advance prompt scheduling per denoiser evaluation on multi-evaluation samplers. Plain schedules can therefore differ when A1111/Forge exhausts them early. Use a scheduled cutoff such as `[a|b::0.5]` when you intentionally want that halfway behavior. The visual effect may still differ due to architectural differences:
    - A1111 applies conditioning at the CFGDenoiser level (before model call)
    - This node applies conditioning through ComfyUI's hook system during sampling
 
@@ -356,7 +366,7 @@ Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control e
 - **Shared Wildcard Catalog**: Wildcard paths are scanned once during startup and reused by autocomplete and runtime expansion.
 - **Efficient encoding**: Unique prompts are encoded only once and cached using composite keys (CLIP + text + normalization).
 - **GPU Pre-Allocation**: All embeddings are pre-moved to the GPU (`intermediate_device`) during encoding to eliminate device-transfer latency during the sampling loop.
-- **Shared Hook Caching**: The step-swapping hook uses a structural result cache that persists even when the hook is cloned, ensuring zero-overhead for 2nd order samplers like Euler a or DPM++ 2M.
+- **Shared Hook Caching**: The step-swapping hook uses a structural result cache that persists when the hook is cloned, avoiding repeated conditioning tensor construction across sampling calls.
 - **Optimized Padding**: Tensors are padded only to the lengths used within the current generation, preventing global cache bloat.
 - **Direct Memory Swapping**: If prompts have identical sequence lengths, the hook uses a zero-math "fast-path" to swap embeddings instantly.
 - **Batch Processing**: Multiple BREAK segments are batched into a single encoding pass.

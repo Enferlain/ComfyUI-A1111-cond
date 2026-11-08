@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "A1111_Prompt_Node",
+  "project_id": "f009acee-60d1-4204-9a4f-5b62e15bf4aa"
+}

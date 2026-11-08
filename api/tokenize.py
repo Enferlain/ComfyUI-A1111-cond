@@ -5,10 +5,15 @@ Provides a REST endpoint for live tokenization feedback.
 Uses word-by-word tokenization with manual position tracking.
 """
 
-from aiohttp import web
-import server
 import logging
 import re
+
+try:
+    from aiohttp import web
+    from server import PromptServer
+except ImportError:
+    web = None
+    PromptServer = None
 
 try:
     from ..parser.wildcards import expand_wildcards_for_token_count
@@ -298,7 +303,6 @@ def build_token_info(text: str, counting_text: str, hf_tokenizer):
     }
 
 
-@server.PromptServer.instance.routes.post("/a1111_prompt/tokenize")
 async def tokenize_prompt(request):
     """
     API endpoint for live tokenization.
@@ -358,3 +362,8 @@ async def tokenize_prompt(request):
         return web.json_response(
             {"error": str(e), "sequences": None, "boundaries": None}, status=500
         )
+
+
+# Keep token-counting helpers importable without a running ComfyUI server.
+if web is not None and getattr(PromptServer, "instance", None) is not None:
+    PromptServer.instance.routes.post("/a1111_prompt/tokenize")(tokenize_prompt)

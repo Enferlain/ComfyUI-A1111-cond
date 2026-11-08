@@ -10,6 +10,14 @@ Rules:
 - Keep proper track of days for where entries should go
 - Be concise but mention all changes without necessarily detailing each one
 
+## [Unreleased] - 2026-11-08
+
+### Fixed
+
+- Made API helpers importable without a running ComfyUI server or optional server dependencies while preserving live endpoint registration.
+- Prevented stale autocomplete responses, errors, and blur timers from replacing or hiding another prompt node's suggestions.
+- Kept dismissed autocomplete requests from reopening the popup after Escape or focus changes.
+
 ## [Unreleased] - 2026-07-25
 
 ### Fixed

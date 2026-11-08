@@ -790,8 +790,8 @@ def start_wildcard_warmup() -> bool:
     return True
 
 
-# Register API endpoints (only if server is available)
-if _HAS_SERVER and PromptServer:
+# Register API endpoints only after a server instance exists.
+if _HAS_SERVER and getattr(PromptServer, "instance", None) is not None:
     start_wildcard_warmup()
 
     @PromptServer.instance.routes.post("/a1111_prompt/autocomplete")

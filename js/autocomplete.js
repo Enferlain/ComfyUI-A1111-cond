@@ -591,7 +591,7 @@ function getCaretCoordinates(element, position) {
  */
 export function showAutocompleteSuggestions(suggestions, textarea, wordInfo, request = null) {
   if (!suggestions || suggestions.length === 0) {
-    hideAutocompletePopup();
+    hideAutocompletePopup(textarea);
     return;
   }
 
@@ -667,9 +667,12 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo, req
     popup.appendChild(item);
   });
 
-  // Calculate position using robust caret logic
+  positionAutocompletePopup(popup, textarea, wordInfo, Math.min(300, currentResults.length * 40));
+  setSelectedIndex(-1);
+}
+
+function positionAutocompletePopup(popup, textarea, wordInfo, popupHeight) {
   const coords = getCaretCoordinates(textarea, wordInfo.start);
-  const popupHeight = Math.min(300, currentResults.length * 40); // Estimate
   const viewportHeight = window.innerHeight;
   
   // Decide whether to show above or below
@@ -682,7 +685,6 @@ export function showAutocompleteSuggestions(suggestions, textarea, wordInfo, req
   popup.style.left = `${Math.max(10, Math.min(coords.x, window.innerWidth - 360))}px`;
   popup.style.top = `${top}px`;
   popup.style.display = "block";
-  setSelectedIndex(-1);
 }
 
 /**
@@ -736,7 +738,8 @@ function sortByFrequency(suggestions, query = "") {
 /**
  * Hide the autocomplete popup
  */
-export function hideAutocompletePopup() {
+export function hideAutocompletePopup(textarea = null) {
+  if (textarea && currentTextarea !== textarea) return;
   if (autocompletePopup) {
     autocompletePopup.style.display = "none";
     selectedIndex = -1;
@@ -832,6 +835,7 @@ function handleKeyboardNavigation(e) {
   }
 
   const length = currentResults.length;
+  if (length === 0 && e.key !== "Escape") return false;
 
   switch (e.key) {
     case "ArrowDown":
@@ -936,19 +940,7 @@ export async function fetchTagSuggestions(query, limit = 20, mode = "tag", extra
     return results;
   } catch (error) {
     console.warn("Autocomplete fetch error:", error);
-    
-    // Reset selection state to prevent inserting stale data on keyboard events
-    currentResults = [];
-    selectedIndex = -1;
-    
-    // Show error in popup
-    const popup = createAutocompletePopup();
-    popup.innerHTML = `
-      <div style="padding: 10px; color: #ff6b6b; font-size: 12px; border-bottom: 1px solid #444;">
-        <strong>Error:</strong> Failed to fetch tags from backend.
-      </div>
-    `;
-    popup.style.display = "block";
+    // The caller checks request ownership before changing the shared popup.
     return null; // Return null to indicate error, differentiating from empty results
   }
 }
@@ -1115,7 +1107,7 @@ app.registerExtension({
         const scheduledVersion = ++requestVersion;
 
         debounceTimeout = setTimeout(async () => {
-          if (!textarea.isConnected) {
+          if (!textarea.isConnected || document.activeElement !== textarea) {
             return;
           }
 
@@ -1124,7 +1116,7 @@ app.registerExtension({
 
           const request = getAutocompleteRequest(wordInfo.word);
           if (request.query.length < request.minLength) {
-            hideAutocompletePopup();
+            hideAutocompletePopup(textarea);
             return;
           }
 
@@ -1148,11 +1140,11 @@ app.registerExtension({
             request.extra
           );
 
-          if (suggestions === null) {
-            return;
-          }
-
-          if (scheduledVersion !== requestVersion || !textarea.isConnected) {
+          if (
+            scheduledVersion !== requestVersion ||
+            !textarea.isConnected ||
+            document.activeElement !== textarea
+          ) {
             return;
           }
 
@@ -1168,10 +1160,22 @@ app.registerExtension({
             return;
           }
 
-          if (suggestions.length > 0) {
+          if (suggestions === null) {
+            currentResults = [];
+            selectedIndex = -1;
+            currentTextarea = textarea;
+            currentWordInfo = latestWordInfo;
+            const popup = createAutocompletePopup();
+            popup.innerHTML = `
+              <div style="padding: 10px; color: #ff6b6b; font-size: 12px;">
+                <strong>Error:</strong> Failed to fetch tags from backend.
+              </div>
+            `;
+            positionAutocompletePopup(popup, textarea, latestWordInfo, 40);
+          } else if (suggestions.length > 0) {
             showAutocompleteSuggestions(suggestions, textarea, latestWordInfo, request);
           } else {
-            hideAutocompletePopup();
+            hideAutocompletePopup(textarea);
           }
         }, delay);
       };
@@ -1181,7 +1185,7 @@ app.registerExtension({
         if (suppressAutocomplete) {
           suppressAutocomplete = false;
           requestVersion++;
-          hideAutocompletePopup();
+          hideAutocompletePopup(textarea);
           return;
         }
 
@@ -1191,6 +1195,10 @@ app.registerExtension({
 
       // Add keydown event listener for navigation
       const onKeydown = (e) => {
+        if (e.key === "Escape") {
+          requestVersion++;
+          clearTimeout(debounceTimeout);
+        }
         if (e.key === "Backspace") {
           const start = textarea.selectionStart;
           const end = textarea.selectionEnd;
@@ -1210,17 +1218,29 @@ app.registerExtension({
           suppressAutocomplete = false;
         }
 
-        if (handleKeyboardNavigation(e)) {
+        if (currentTextarea === textarea && handleKeyboardNavigation(e)) {
           // Event was handled by autocomplete
           return;
         }
       };
       textarea.addEventListener("keydown", onKeydown);
 
-      // Hide popup on blur (with delay to allow clicks)
-      const onBlur = () => {
-        textarea._a1111_autocomplete_blur_timeout = setTimeout(() => {
+      const onFocus = () => {
+        clearTimeout(textarea._a1111_autocomplete_blur_timeout);
+        textarea._a1111_autocomplete_blur_timeout = null;
+        if (currentTextarea && currentTextarea !== textarea) {
           hideAutocompletePopup();
+        }
+      };
+      textarea.addEventListener("focus", onFocus);
+
+      // Invalidate pending requests immediately; allow time for a popup click.
+      const onBlur = () => {
+        requestVersion++;
+        clearTimeout(debounceTimeout);
+        clearTimeout(textarea._a1111_autocomplete_blur_timeout);
+        textarea._a1111_autocomplete_blur_timeout = setTimeout(() => {
+          hideAutocompletePopup(textarea);
           textarea._a1111_autocomplete_blur_timeout = null;
         }, 200);
       };
@@ -1228,9 +1248,11 @@ app.registerExtension({
 
       // Hide popup when clicking outside
       const outsideClickListener = (e) => {
-        if (autocompletePopup && 
+        if (currentTextarea === textarea && autocompletePopup &&
             !autocompletePopup.contains(e.target) && 
             e.target !== textarea) {
+          requestVersion++;
+          clearTimeout(debounceTimeout);
           hideAutocompletePopup();
         }
       };
@@ -1244,6 +1266,7 @@ app.registerExtension({
         textarea.removeEventListener("input", onInput);
         textarea.removeEventListener("keydown", onKeydown);
         textarea.removeEventListener("blur", onBlur);
+        textarea.removeEventListener("focus", onFocus);
         document.removeEventListener("click", outsideClickListener);
         if (node._outsideClickListener === outsideClickListener) {
           node._outsideClickListener = null;

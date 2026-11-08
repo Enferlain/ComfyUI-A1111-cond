@@ -15,6 +15,10 @@ REFACTOR_SUMMARY.md
 *.zip
 data/wildcards/*
 !data/wildcards/readme.md
+.omp
+.claude
+.opencode
+.agents
 
 # Beads / Dolt files (added by bd init)
 .dolt/

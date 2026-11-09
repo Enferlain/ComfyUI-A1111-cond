@@ -18,12 +18,14 @@ DisplayName = "A1111 Prompt Node"
 Icon = ""
 includes = [
     "nodes/",
+    "encoding/",
     "parser/",
     "api/",
     "js/",
     "data/",
     "__init__.py",
     "hooks.py",
+    "metadata.py",
     "LICENSE",
     "README.md",
     "requirements.txt"

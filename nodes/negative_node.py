@@ -1,9 +1,7 @@
 """
 A1111 Style Negative Prompt Node
 
-Same encoding logic as A1111PromptNode but WITHOUT model input.
-This prevents alternation hooks from being registered on the model,
-which would break generation if used for negative conditioning.
+Uses the shared encoding policy without attaching a sampling schedule hook.
 
 If scheduling/alternation syntax is detected, it uses the first step's
 prompt and logs an info message.
@@ -12,7 +10,7 @@ prompt and logs an info message.
 import logging
 from ..parser import expand_wildcards, get_prompt_schedule
 from ..metadata import record_prompt_metadata
-from .prompt_node import A1111PromptNode
+from ..encoding import get_encoder, ANIMA_EMPHASIS_MODES
 
 logger = logging.getLogger("A1111PromptNode")
 
@@ -21,9 +19,7 @@ class A1111PromptNegative:
     """
     A1111 Style Negative Prompt Node.
 
-    Same encoding logic as A1111PromptNode but WITHOUT model input.
-    This prevents alternation hooks from being registered on the model,
-    which would break generation if used for negative conditioning.
+    Uses the same encoder/model contract as the positive node.
 
     If scheduling/alternation syntax is detected, it uses the first step's
     prompt and logs an info message.
@@ -45,6 +41,7 @@ class A1111PromptNegative:
                     "BOOLEAN",
                     {"default": False, "label_on": "Enable", "label_off": "Disable"},
                 ),
+                "anima_emphasis": (list(ANIMA_EMPHASIS_MODES), {"default": "native", "tooltip": "Anima only: native weighting, stable single-pass weighting, or attention bias. Applies to this negative prompt only."}),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID",
@@ -66,6 +63,7 @@ class A1111PromptNegative:
         debug=False,
         unique_id=None,
         extra_pnginfo=None,
+        anima_emphasis="native",
     ):
         """
         Encode negative prompt. Uses first step only if scheduling is detected.
@@ -74,16 +72,14 @@ class A1111PromptNegative:
             raise RuntimeError("ERROR: clip input is None")
 
         expanded_text = expand_wildcards(text)
+        encoder = get_encoder(clip, anima_emphasis)
+        encoder.validate_request(expanded_text, normalization=normalization)
         record_prompt_metadata(
             extra_pnginfo,
             unique_id,
             "A1111PromptNegative",
             text,
             expanded_text,
-        )
-
-        is_sdxl = hasattr(clip.cond_stage_model, "clip_l") and hasattr(
-            clip.cond_stage_model, "clip_g"
         )
 
         # Parse the prompt schedule (use dummy steps as it's not supported for negative)
@@ -113,7 +109,7 @@ class A1111PromptNegative:
                     else f"[A1111 Prompt Negative] Effective text: {expanded_text}"
                 )
             logger.info(
-                f"[A1111 Prompt Negative] Model: {'SDXL' if is_sdxl else 'SD1.5'}"
+                f"[A1111 Prompt Negative] Encoder: {encoder.name}"
             )
             if len(schedule) > 1:
                 logger.info(
@@ -123,13 +119,9 @@ class A1111PromptNegative:
                 f"[A1111 Prompt Negative] Resolved prompt: {prompt_text[:100]}..."
             )
 
-        # Reuse the encoding helper from A1111PromptNode
-        encoder = A1111PromptNode()
-        cond, pooled = encoder._encode_with_break_isolation(
-            clip, prompt_text, normalization, is_sdxl, debug
-        )
+        cond, metadata = encoder.encode(clip, prompt_text, normalization, debug)
 
         return {
             "ui": {"text": [expanded_text]},
-            "result": ([[cond, {"pooled_output": pooled}]],),
+            "result": ([[cond, metadata]],),
         }

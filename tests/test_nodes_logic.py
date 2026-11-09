@@ -1,52 +1,12 @@
 import unittest
 import torch
 
-# We extract the pure logic from prompt_node.py to test it in isolation
-# without dealing with ComfyUI's complex package/import system.
+import comfy_stubs  # noqa: F401 - install isolated ComfyUI dependencies
+from A1111_Prompt_Node.encoding.clip import CLIPEncoder
 
-
-def extract_weights(token_batches):
-    all_weights = []
-    for batch in token_batches:
-        if not batch:
-            all_weights.append([])
-            continue
-        batch_weights = [
-            t[1] if hasattr(t, "__getitem__") and len(t) > 1 else 1.0 for t in batch
-        ]
-        all_weights.append(batch_weights)
-    return all_weights
-
-
-def apply_direct_scaling(cond, weights, normalization):
-    cond = cond.clone()
-    flat_weights = []
-    for chunk_weights in weights:
-        flat_weights.extend(chunk_weights)
-
-    seq_len = cond.shape[1]
-    if len(flat_weights) < seq_len:
-        flat_weights = flat_weights + [1.0] * (seq_len - len(flat_weights))
-    elif len(flat_weights) > seq_len:
-        flat_weights = flat_weights[:seq_len]
-
-    batch_size = cond.shape[0]
-    multipliers = torch.tensor(
-        [flat_weights] * batch_size, device=cond.device, dtype=cond.dtype
-    )
-
-    if normalization:
-        original_mean = cond.mean()
-
-    multipliers = multipliers.unsqueeze(-1).expand_as(cond)
-    cond = cond * multipliers
-
-    if normalization:
-        new_mean = cond.mean()
-        if new_mean.abs() > 1e-8:
-            scale_factor = original_mean / new_mean
-            cond = cond * scale_factor
-    return cond
+encoder = CLIPEncoder(("l",))
+extract_weights = encoder._extract_weights
+apply_direct_scaling = encoder._apply_direct_scaling
 
 
 class TestNodesLogic(unittest.TestCase):

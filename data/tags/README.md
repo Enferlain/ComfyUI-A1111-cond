@@ -12,7 +12,8 @@ The autocomplete system will automatically look for tag files in:
 
 ## Currently Available Files
 
-- **danbooru.csv** - Main Danbooru tag database (~140k tags)
+- **danbooru_e621_merged_2026-03-01_pt20-ia-dd-ed-spc.csv** - Default merged Danbooru/e621 database
+- **danbooru.csv** - Alternative Danbooru tag database
 - **e621.csv** - E621 tag database (furry-focused)
 - **extra-quality-tags.csv** - Quality and style tags
 - **EnglishDictionary.csv** - Common English words
@@ -53,20 +54,20 @@ To add your own tags:
 
 ## Changing the Tag Database
 
-By default, the autocomplete uses `danbooru.csv`. To use a different tag file:
+By default, the autocomplete uses `danbooru_e621_merged_2026-03-01_pt20-ia-dd-ed-spc.csv`. The current UI has no database selector; the backend constant controls this default. To use a different tag file:
 
-### Method 1: Copy to data/tags/ (Recommended)
+### Method 1: Replace the active CSV
 
-Copy your preferred CSV file to the `data/tags/` directory and rename it to `danbooru.csv`:
+To replace the active database contents, copy a compatible CSV over the configured default file. Keep a backup if you want to restore it:
 
 ```bash
 # Example: Use the merged Danbooru + e621 database
-cp autocomplete_reference/a1111-sd-webui-tagcomplete/tags/danbooru_e621_merged.csv data/tags/danbooru.csv
+cp -f /path/to/custom-tags.csv data/tags/danbooru_e621_merged_2026-03-01_pt20-ia-dd-ed-spc.csv
 ```
 
 The autocomplete will automatically use this file on next load.
 
-### Method 2: Modify the Backend (Advanced)
+### Method 2: Select a different bundled or custom filename
 
 Edit `api/autocomplete.py` and change the `DEFAULT_TAG_FILE` constant at the top of the file:
 
@@ -89,7 +90,7 @@ Located in `autocomplete_reference/a1111-sd-webui-tagcomplete/tags/`:
 
 ### Reload After Changing
 
-After changing the tag file, restart ComfyUI or reload the page for changes to take effect.
+After changing database contents or the default filename, restart ComfyUI to clear the backend database cache. Reloading the browser alone does not reload an already cached CSV.
 
 ## Usage
 

@@ -42,8 +42,8 @@ TAG_TYPES = {
 DATA_DIR = Path(__file__).parent.parent / "data" / "tags"
 WILDCARDS_DIR = Path(__file__).parent.parent / "data" / "wildcards"
 
-# Default tag file to use if not specified (danbooru.csv is default)
-DEFAULT_TAG_FILE = "danbooru.csv"
+# Default bundled tag file when the request does not select one explicitly.
+DEFAULT_TAG_FILE = "danbooru_e621_merged_2026-03-01_pt20-ia-dd-ed-spc.csv"
 
 
 def _coerce_text(value) -> str:

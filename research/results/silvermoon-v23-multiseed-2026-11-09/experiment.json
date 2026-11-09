@@ -1,0 +1,23 @@
+{
+  "source_sha256": "27c259e93ebb721bc47451b19faadd86270b7fa8f5b4b4801787cbee36add76c",
+  "seeds": [
+    12345,
+    12346,
+    12347,
+    12348,
+    12349
+  ],
+  "variants": [
+    "plain",
+    "singlepass_3",
+    "attention_bias_3"
+  ],
+  "original_seed_directory": "D:\\ComfyUI-current\\custom_nodes\\A1111_Prompt_Node\\research\\results\\silvermoon-v23-artists-2026-11-09\\images",
+  "settings": {
+    "steps": 24,
+    "size": 768,
+    "cfg": 4,
+    "sampler": "euler",
+    "scheduler": "normal"
+  }
+}

@@ -10,10 +10,29 @@ Rules:
 - Keep proper track of days for where entries should go
 - Be concise but mention all changes without necessarily detailing each one
 
+## [Unreleased] - 2026-11-09
+
+### Added
+
+- Added Anima emphasis choices to both prompt nodes: native (default), single-pass value weighting, and conditioning-scoped attention bias. Encoding caches distinguish modes; CLIP/SDXL retain their existing behavior.
+
+### Changed
+
+- Bundled the configured March 2026 merged Danbooru/e621 tag database and updated database setup instructions.
+- Organized research scripts and small provenance reports, kept generated images/tensors out of Git, and archived older planning notes.
+- Updated the README for installation, model-specific inputs, token counter estimates, and known scheduling limitations.
+
 ## [Unreleased] - 2026-11-08
+
+### Changed
+
+- Separated conditioning policy into an `encoding` package with a shared capability contract, CLIP/SDXL implementation, Anima implementation, and explicit encoder selection for both prompt nodes.
 
 ### Fixed
 
+- Preserved encoder metadata for static positive and negative prompts, including Anima's attention mask, token IDs, and emphasis weights.
+- Added explicit errors for Anima BREAK, scheduling, and normalization; their semantics through the conditioning adapter require separate design and validation.
+- Reject scheduled encodings with auxiliary metadata that the current hook cannot switch, before caching unsupported results.
 - Made API helpers importable without a running ComfyUI server or optional server dependencies while preserving live endpoint registration.
 - Prevented stale autocomplete responses, errors, and blur timers from replacing or hiding another prompt node's suggestions.
 - Kept dismissed autocomplete requests from reopening the popup after Escape or focus changes.

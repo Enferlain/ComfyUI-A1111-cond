@@ -1,0 +1,1352 @@
+{
+  "checkpoint": "D:\\ComfyUI\\models\\diffusion_models\\animayume_v15Base.safetensors",
+  "checkpoint_size": 4182218328,
+  "checkpoint_mtime_ns": 1793261000766820500,
+  "adapter_parameters": 134663680,
+  "te": "D:\\ComfyUI\\models\\text_encoders\\qwen_3_06b_base.safetensors",
+  "device": "cuda:1",
+  "dtype": "float32",
+  "qwen_encodes": 21,
+  "adapter_encodes": 28,
+  "records": [
+    {
+      "artist": "as109",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.9809669852256775,
+        "cosine": 0.5362533330917358,
+        "rms_ratio": 1.0361173152923584
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999999403953552,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999999403953552,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "as109",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0076525211334229,
+        "cosine": 0.5928080081939697,
+        "rms_ratio": 1.19843590259552
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.2160094678401947,
+        "cosine": 0.9916908144950867,
+        "rms_ratio": 1.1652156114578247
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.12891194224357605,
+        "cosine": 0.9916907548904419,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.8582102656364441,
+      "mean_preserving_scale": 2.2189748287200928,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "as109",
+      "kind": "artist",
+      "position": "start",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.2276618480682373,
+        "cosine": 0.6582683324813843,
+        "rms_ratio": 1.628047227859497
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.7200316786766052,
+        "cosine": 0.9498939514160156,
+        "rms_ratio": 1.5985420942306519
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.3165626525878906,
+        "cosine": 0.9498939514160156,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.6255699992179871,
+      "mean_preserving_scale": -1.2031652927398682,
+      "mean_preserving_scale_flips_sign": true
+    },
+    {
+      "artist": "as109",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.7852877974510193,
+        "cosine": 0.6983864307403564,
+        "rms_ratio": 1.0215280055999756
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999998807907104,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999998807907104,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "as109",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.8197017908096313,
+        "cosine": 0.7323768138885498,
+        "rms_ratio": 1.1887614727020264
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.21754314005374908,
+        "cosine": 0.9917328953742981,
+        "rms_ratio": 1.1674009561538696
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.12858493626117706,
+        "cosine": 0.9917328953742981,
+        "rms_ratio": 0.9999998807907104
+      },
+      "rms_normalization_scale": 0.8566036224365234,
+      "mean_preserving_scale": 1.3190621137619019,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "as109",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0843348503112793,
+        "cosine": 0.7600523233413696,
+        "rms_ratio": 1.628074049949646
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.7251439690589905,
+        "cosine": 0.9504029750823975,
+        "rms_ratio": 1.6054598093032837
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.31495097279548645,
+        "cosine": 0.9504029154777527,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.6228745579719543,
+      "mean_preserving_scale": 5.162225723266602,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "fkey",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0323337316513062,
+        "cosine": 0.4873164892196655,
+        "rms_ratio": 1.037943720817566
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "fkey",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0542641878128052,
+        "cosine": 0.5436070561408997,
+        "rms_ratio": 1.18155837059021
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.20410451292991638,
+        "cosine": 0.9914840459823608,
+        "rms_ratio": 1.1486440896987915
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.13050639629364014,
+        "cosine": 0.9914840459823608,
+        "rms_ratio": 1.0000001192092896
+      },
+      "rms_normalization_scale": 0.8705918192863464,
+      "mean_preserving_scale": 1.2802456617355347,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "fkey",
+      "kind": "artist",
+      "position": "start",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.2416197061538696,
+        "cosine": 0.6121814250946045,
+        "rms_ratio": 1.569461703300476
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.6803485155105591,
+        "cosine": 0.9465274810791016,
+        "rms_ratio": 1.5455169677734375
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.3270246386528015,
+        "cosine": 0.9465274810791016,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.6470327377319336,
+      "mean_preserving_scale": 3.699138879776001,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "fkey",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.8415173292160034,
+        "cosine": 0.6539400815963745,
+        "rms_ratio": 1.0224359035491943
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999999403953552,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999999403953552,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "fkey",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.8681974411010742,
+        "cosine": 0.6890122294425964,
+        "rms_ratio": 1.1670339107513428
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.20374682545661926,
+        "cosine": 0.9914809465408325,
+        "rms_ratio": 1.1481571197509766
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.130529522895813,
+        "cosine": 0.9914810061454773,
+        "rms_ratio": 0.9999998807907104
+      },
+      "rms_normalization_scale": 0.8709608912467957,
+      "mean_preserving_scale": 1.3351781368255615,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "fkey",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0869150161743164,
+        "cosine": 0.7198407649993896,
+        "rms_ratio": 1.5562349557876587
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.6791561841964722,
+        "cosine": 0.9464424848556519,
+        "rms_ratio": 1.5439430475234985
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.32728415727615356,
+        "cosine": 0.9464424848556519,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.6476923227310181,
+      "mean_preserving_scale": 6.126941680908203,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "mignon",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0781720876693726,
+        "cosine": 0.44241657853126526,
+        "rms_ratio": 1.0409040451049805
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "mignon",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0985432863235474,
+        "cosine": 0.49921900033950806,
+        "rms_ratio": 1.1745092868804932
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.19543839991092682,
+        "cosine": 0.9914606809616089,
+        "rms_ratio": 1.137030005455017
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.13068529963493347,
+        "cosine": 0.9914607405662537,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.879484236240387,
+      "mean_preserving_scale": 0.9739301800727844,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "mignon",
+      "kind": "artist",
+      "position": "start",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.26907217502594,
+        "cosine": 0.5715259313583374,
+        "rms_ratio": 1.5396097898483276
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.6514614224433899,
+        "cosine": 0.9447419047355652,
+        "rms_ratio": 1.5077155828475952
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.3324397802352905,
+        "cosine": 0.9447419047355652,
+        "rms_ratio": 0.9999999403953552
+      },
+      "rms_normalization_scale": 0.6632550954818726,
+      "mean_preserving_scale": 0.9180837273597717,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "mignon",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.8681475520133972,
+        "cosine": 0.635696530342102,
+        "rms_ratio": 1.0329245328903198
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999999403953552,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 0.9999999403953552,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "mignon",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.89536052942276,
+        "cosine": 0.6699389219284058,
+        "rms_ratio": 1.1704273223876953
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.19616098701953888,
+        "cosine": 0.9914587140083313,
+        "rms_ratio": 1.1379835605621338
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.13070018589496613,
+        "cosine": 0.9914587140083313,
+        "rms_ratio": 0.9999999403953552
+      },
+      "rms_normalization_scale": 0.8787472248077393,
+      "mean_preserving_scale": 0.9422968626022339,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "mignon",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.1049911975860596,
+        "cosine": 0.7004740834236145,
+        "rms_ratio": 1.544079303741455
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.6538700461387634,
+        "cosine": 0.9448689818382263,
+        "rms_ratio": 1.5108401775360107
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.33205726742744446,
+        "cosine": 0.9448689818382263,
+        "rms_ratio": 0.9999999403953552
+      },
+      "rms_normalization_scale": 0.6618833541870117,
+      "mean_preserving_scale": 0.8304803371429443,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "nnn yryr",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.8170696496963501,
+        "cosine": 0.6744351983070374,
+        "rms_ratio": 1.024385929107666
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "nnn yryr",
+      "kind": "artist",
+      "position": "start",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.858849287033081,
+        "cosine": 0.7238290309906006,
+        "rms_ratio": 1.2352490425109863
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.2478909194469452,
+        "cosine": 0.9933525323867798,
+        "rms_ratio": 1.2128957509994507
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.11530348658561707,
+        "cosine": 0.9933525323867798,
+        "rms_ratio": 0.9999998807907104
+      },
+      "rms_normalization_scale": 0.8244731426239014,
+      "mean_preserving_scale": 0.8474683165550232,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "nnn yryr",
+      "kind": "artist",
+      "position": "start",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.1765966415405273,
+        "cosine": 0.7745275497436523,
+        "rms_ratio": 1.7666326761245728
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.8263031840324402,
+        "cosine": 0.9638190269470215,
+        "rms_ratio": 1.7459468841552734
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.26900169253349304,
+        "cosine": 0.9638190269470215,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.5727550983428955,
+      "mean_preserving_scale": 0.6250194311141968,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "nnn yryr",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.6474596261978149,
+        "cosine": 0.7938563227653503,
+        "rms_ratio": 1.0161439180374146
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0000001192092896,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0000001192092896,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "nnn yryr",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.6993558406829834,
+        "cosine": 0.8225207328796387,
+        "rms_ratio": 1.2295081615447998
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.24898773431777954,
+        "cosine": 0.9934405088424683,
+        "rms_ratio": 1.2146168947219849
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.11453789472579956,
+        "cosine": 0.9934405088424683,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.8233048319816589,
+      "mean_preserving_scale": 0.8298956751823425,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "nnn yryr",
+      "kind": "artist",
+      "position": "middle",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0668983459472656,
+        "cosine": 0.8434106111526489,
+        "rms_ratio": 1.7651554346084595
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.8299592137336731,
+        "cosine": 0.9644178748130798,
+        "rms_ratio": 1.7511416673660278
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.26676619052886963,
+        "cosine": 0.9644178748130798,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.5710560083389282,
+      "mean_preserving_scale": 0.5940938591957092,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "chibi",
+      "kind": "concept",
+      "position": "start",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.1720340251922607,
+        "cosine": 0.34538304805755615,
+        "rms_ratio": 1.0474891662597656
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "chibi",
+      "kind": "concept",
+      "position": "start",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.189051628112793,
+        "cosine": 0.4034108519554138,
+        "rms_ratio": 1.1627421379089355
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.1786496341228485,
+        "cosine": 0.9916912317276001,
+        "rms_ratio": 1.1156554222106934
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.12890928983688354,
+        "cosine": 0.9916912317276001,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.8963341116905212,
+      "mean_preserving_scale": 0.9147856831550598,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "chibi",
+      "kind": "concept",
+      "position": "start",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.3289188146591187,
+        "cosine": 0.484478235244751,
+        "rms_ratio": 1.484850287437439
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.5954988598823547,
+        "cosine": 0.9429254531860352,
+        "rms_ratio": 1.4366129636764526
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.337859570980072,
+        "cosine": 0.9429253935813904,
+        "rms_ratio": 1.0000001192092896
+      },
+      "rms_normalization_scale": 0.6960817575454712,
+      "mean_preserving_scale": 0.7630632519721985,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "chibi",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.9209756851196289,
+        "cosine": 0.5934383869171143,
+        "rms_ratio": 1.041060209274292
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0000001192092896,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0000001192092896,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "chibi",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.942348837852478,
+        "cosine": 0.6265688538551331,
+        "rms_ratio": 1.1562952995300293
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.1791796237230301,
+        "cosine": 0.9916788935661316,
+        "rms_ratio": 1.1163067817687988
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.1290055513381958,
+        "cosine": 0.991678774356842,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.8958110213279724,
+      "mean_preserving_scale": 0.8813422322273254,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "chibi",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.1125779151916504,
+        "cosine": 0.6585894823074341,
+        "rms_ratio": 1.4780832529067993
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.5972655415534973,
+        "cosine": 0.9429492354393005,
+        "rms_ratio": 1.4388113021850586
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.33778923749923706,
+        "cosine": 0.9429492354393005,
+        "rms_ratio": 1.0000001192092896
+      },
+      "rms_normalization_scale": 0.6950181722640991,
+      "mean_preserving_scale": 0.6902372241020203,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "red hair",
+      "kind": "concept",
+      "position": "start",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.2434688806533813,
+        "cosine": 0.2677977681159973,
+        "rms_ratio": 1.0538830757141113
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "red hair",
+      "kind": "concept",
+      "position": "start",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.2538436651229858,
+        "cosine": 0.31491994857788086,
+        "rms_ratio": 1.13424813747406
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.149295836687088,
+        "cosine": 0.9928133487701416,
+        "rms_ratio": 1.0820740461349487
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.11988916248083115,
+        "cosine": 0.992813229560852,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.9241511821746826,
+      "mean_preserving_scale": 0.9553393721580505,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "red hair",
+      "kind": "concept",
+      "position": "start",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.3457255363464355,
+        "cosine": 0.3885866403579712,
+        "rms_ratio": 1.369390606880188
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.4976527988910675,
+        "cosine": 0.9450399279594421,
+        "rms_ratio": 1.3202177286148071
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.3315425217151642,
+        "cosine": 0.9450399279594421,
+        "rms_ratio": 1.0000001192092896
+      },
+      "rms_normalization_scale": 0.7574508786201477,
+      "mean_preserving_scale": 0.8651806712150574,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "red hair",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0042206048965454,
+        "cosine": 0.5206126570701599,
+        "rms_ratio": 1.04928719997406
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "red hair",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0158106088638306,
+        "cosine": 0.5492744445800781,
+        "rms_ratio": 1.1268328428268433
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.14776365458965302,
+        "cosine": 0.9928919076919556,
+        "rms_ratio": 1.0804604291915894
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.11923237144947052,
+        "cosine": 0.9928919076919556,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.9255313277244568,
+      "mean_preserving_scale": 0.9510970115661621,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "red hair",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.121469259262085,
+        "cosine": 0.582129955291748,
+        "rms_ratio": 1.354508399963379
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.49254554510116577,
+        "cosine": 0.9453325867652893,
+        "rms_ratio": 1.3144593238830566
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.330658495426178,
+        "cosine": 0.9453325867652893,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.7607690691947937,
+      "mean_preserving_scale": 0.8536855578422546,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "watercolor",
+      "kind": "concept",
+      "position": "start",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.2839431762695312,
+        "cosine": 0.22029182314872742,
+        "rms_ratio": 1.0551801919937134
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "watercolor",
+      "kind": "concept",
+      "position": "start",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.2918355464935303,
+        "cosine": 0.26073527336120605,
+        "rms_ratio": 1.1191186904907227
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.13401652872562408,
+        "cosine": 0.993661642074585,
+        "rms_ratio": 1.0666286945343018
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.11258970946073532,
+        "cosine": 0.993661642074585,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.9375333786010742,
+      "mean_preserving_scale": 1.1541836261749268,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "watercolor",
+      "kind": "concept",
+      "position": "start",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.3628313541412354,
+        "cosine": 0.3282819986343384,
+        "rms_ratio": 1.3106660842895508
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.4467218816280365,
+        "cosine": 0.9487268328666687,
+        "rms_ratio": 1.2643896341323853
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.32022857666015625,
+        "cosine": 0.9487267732620239,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.790895402431488,
+      "mean_preserving_scale": 1.802741289138794,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "watercolor",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 1.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0276116132736206,
+        "cosine": 0.5004997849464417,
+        "rms_ratio": 1.0541114807128906
+      },
+      "stable_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": true,
+        "relative_l2": 0.0,
+        "cosine": 1.0,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 1.0,
+      "mean_preserving_scale": 1.0,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "watercolor",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 1.3,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.0377084016799927,
+        "cosine": 0.5248763561248779,
+        "rms_ratio": 1.1184537410736084
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.13398660719394684,
+        "cosine": 0.9936635494232178,
+        "rms_ratio": 1.0665998458862305
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.11257380992174149,
+        "cosine": 0.9936635494232178,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.9375587105751038,
+      "mean_preserving_scale": 1.0686734914779663,
+      "mean_preserving_scale_flips_sign": false
+    },
+    {
+      "artist": "watercolor",
+      "kind": "concept",
+      "position": "middle",
+      "weight": 2.0,
+      "native_vs_plain": {
+        "equal": false,
+        "relative_l2": 1.1257485151290894,
+        "cosine": 0.5535959005355835,
+        "rms_ratio": 1.3110774755477905
+      },
+      "stable_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.4466221034526825,
+        "cosine": 0.9487356543540955,
+        "rms_ratio": 1.2642840147018433
+      },
+      "stable_unweighted_tokens_unchanged": true,
+      "rms_normalized_vs_plain": {
+        "equal": false,
+        "relative_l2": 0.32020092010498047,
+        "cosine": 0.9487356543540955,
+        "rms_ratio": 1.0
+      },
+      "rms_normalization_scale": 0.7909615635871887,
+      "mean_preserving_scale": 1.272591233253479,
+      "mean_preserving_scale_flips_sign": false
+    }
+  ],
+  "native_preprocess_parity": true,
+  "native_preprocess_verified_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41
+  ],
+  "qwen_weights_asserted_neutral": true,
+  "limits": "Learned-adapter tensor diagnostics only; not image/style quality evidence.",
+  "legacy_schedule_probe": [
+    {
+      "steps": 2,
+      "expected": [
+        0,
+        1
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "matches": false
+    },
+    {
+      "steps": 3,
+      "expected": [
+        0,
+        1,
+        2
+      ],
+      "observed": [
+        0,
+        1,
+        1
+      ],
+      "matches": false
+    },
+    {
+      "steps": 6,
+      "expected": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "observed": [
+        0,
+        1,
+        2,
+        2,
+        3,
+        4
+      ],
+      "matches": false
+    },
+    {
+      "steps": 30,
+      "expected": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ],
+      "observed": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28
+      ],
+      "matches": false
+    }
+  ]
+}

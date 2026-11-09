@@ -1,0 +1,6 @@
+# Preserve archived source bytes, including Markdown hard breaks.
+docs/archive/*.md -text whitespace=-blank-at-eol,cr-at-eol
+
+# Report hashes were recorded from the original bytes on Windows.
+# Keep those bytes stable across Git checkouts on other platforms.
+research/results/** -text whitespace=cr-at-eol

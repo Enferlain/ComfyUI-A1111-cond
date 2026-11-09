@@ -26,3 +26,24 @@ data/wildcards/*
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Local Python environments, caches and build outputs
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+/build/
+/dist/
+*.py[cod]
+
+# Local environment and editor state
+.env
+.env.*
+!.env.example
+.codex/
+.DS_Store

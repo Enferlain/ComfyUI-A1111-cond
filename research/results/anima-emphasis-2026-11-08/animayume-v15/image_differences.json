@@ -1,0 +1,89 @@
+{
+  "records": [
+    {
+      "artist": "as109",
+      "variant": "plain",
+      "rmse_from_plain": 0.0,
+      "equal_to_plain": true,
+      "file_sha256": "f68eb06c9c7cc6a296f1e89ee867dd6273fec9b25a980ce8038c08421a780e69"
+    },
+    {
+      "artist": "as109",
+      "variant": "native_1.0",
+      "rmse_from_plain": 0.10117284224834704,
+      "equal_to_plain": false,
+      "file_sha256": "936c2365a091afd98d9e709d236c6aa0ea38c0ca50cb760bc905c64515b6102a"
+    },
+    {
+      "artist": "as109",
+      "variant": "native_2.0",
+      "rmse_from_plain": 0.2550357866355011,
+      "equal_to_plain": false,
+      "file_sha256": "4e37cc4824929f05fd5332238bc2adf88f079f18e67d507485586bdf0d5cddb4"
+    },
+    {
+      "artist": "as109",
+      "variant": "singlepass_2.0",
+      "rmse_from_plain": 0.25972847289631235,
+      "equal_to_plain": false,
+      "file_sha256": "a1b41bafa6f90ee4e200e4e4d1aaf9b13a7a5146b2e950b851a01666bcc42d39"
+    },
+    {
+      "artist": "as109",
+      "variant": "singlepass_2.0_rms",
+      "rmse_from_plain": 0.172792242744725,
+      "equal_to_plain": false,
+      "file_sha256": "5d3cfdaec83f619da9eab11b4de9d4d45cd65a558da05021e6ecadb9ee6129cf"
+    },
+    {
+      "artist": "fkey",
+      "variant": "plain",
+      "rmse_from_plain": 0.0,
+      "equal_to_plain": true,
+      "file_sha256": "eb8eacb0551d372a215b96e65b27deeb666701a14821750f4ba5a8907d1b3158"
+    },
+    {
+      "artist": "fkey",
+      "variant": "native_1.0",
+      "rmse_from_plain": 0.17891681017666308,
+      "equal_to_plain": false,
+      "file_sha256": "8a42f9690ec8f0b524cfd84157216716810c460638d366440e4ca866181b6ca6"
+    },
+    {
+      "artist": "fkey",
+      "variant": "native_2.0",
+      "rmse_from_plain": 0.2667025553724846,
+      "equal_to_plain": false,
+      "file_sha256": "3f0da89843433e9195d49e0758ab3ab5fcbfd07a1e93f4127224c4acbd33c64b"
+    },
+    {
+      "artist": "fkey",
+      "variant": "singlepass_2.0",
+      "rmse_from_plain": 0.2564873199113019,
+      "equal_to_plain": false,
+      "file_sha256": "93180d6a252281be97bbadff93315ec4ca6071349e7608db24e45f6f9740a9b4"
+    },
+    {
+      "artist": "fkey",
+      "variant": "singlepass_2.0_rms",
+      "rmse_from_plain": 0.16163956997136605,
+      "equal_to_plain": false,
+      "file_sha256": "884591112f1735f981c9132a56b7d5b6e3ac2cb7b12dd5cf6d9c956d4c2864b0"
+    },
+    {
+      "artist": "as109",
+      "variant": "attention_bias_2.0",
+      "rmse_from_plain": 0.14945909893282053,
+      "equal_to_plain": false,
+      "file_sha256": "6b1da389458f59f4b6f6978e0f8c66e6e7e477209b47a43fc4a7710b236a0b54"
+    },
+    {
+      "artist": "fkey",
+      "variant": "attention_bias_2.0",
+      "rmse_from_plain": 0.15774556746966245,
+      "equal_to_plain": false,
+      "file_sha256": "01178c42e0c4cee133e980617b129c611ccc48b107a78a2c69d106371718577b"
+    }
+  ],
+  "limits": "Pixel differences measure change, not fidelity to an artist or image quality."
+}

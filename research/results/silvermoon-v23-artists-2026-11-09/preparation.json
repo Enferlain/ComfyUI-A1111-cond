@@ -1,0 +1,165 @@
+{
+  "prompt": "@cutesexyrobutts, @quasarcake, @ssambatea, best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+  "negative_prompt": "low quality, blurry, jpeg artifacts",
+  "checkpoint": "D:\\ComfyUI\\models\\diffusion_models\\silvermoonmixAnima_v23.safetensors",
+  "checkpoint_size": 4182218328,
+  "checkpoint_mtime_ns": 1787412520698417200,
+  "checkpoint_sha256": "fcf423c227cd2ade6df46636f609f3a961371fdb4b57d84825e210a613df5c0b",
+  "script_sha256": "0d8bfee79139eec8561eaf1277f68665d2a5e4c71e921d5f37f51bc713b307cc",
+  "adapter_parameters": 134663680,
+  "dtype": "float32",
+  "te": "D:\\ComfyUI\\models\\text_encoders\\qwen_3_06b_base.safetensors",
+  "records": [
+    {
+      "artist": "cutesexyrobutts",
+      "weight": 1,
+      "prompt": "(@cutesexyrobutts:1), @quasarcake, @ssambatea, best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": true,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "weight": 2,
+      "prompt": "(@cutesexyrobutts:2), @quasarcake, @ssambatea, best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": false,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "weight": 3,
+      "prompt": "(@cutesexyrobutts:3), @quasarcake, @ssambatea, best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": false,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "quasarcake",
+      "weight": 1,
+      "prompt": "@cutesexyrobutts, (@quasarcake:1), @ssambatea, best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": true,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "quasarcake",
+      "weight": 2,
+      "prompt": "@cutesexyrobutts, (@quasarcake:2), @ssambatea, best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": false,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "quasarcake",
+      "weight": 3,
+      "prompt": "@cutesexyrobutts, (@quasarcake:3), @ssambatea, best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": false,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "ssambatea",
+      "weight": 1,
+      "prompt": "@cutesexyrobutts, @quasarcake, (@ssambatea:1), best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": true,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "ssambatea",
+      "weight": 2,
+      "prompt": "@cutesexyrobutts, @quasarcake, (@ssambatea:2), best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": false,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "boundary_crossings": []
+    },
+    {
+      "artist": "ssambatea",
+      "weight": 3,
+      "prompt": "@cutesexyrobutts, @quasarcake, (@ssambatea:3), best quality, newest, 1girl, solo, umika \\(blue archive\\), grey hair, long hair, brown eyes, dog ears, floppy ears, blue halo, blue kimono, white apron, wa maid, maid headdress, holding takoyaki, eating, open mouth, hands up, small sweatdrop, upper body, from side, looking at viewer, outdoors",
+      "native_equals_plain": false,
+      "stable_equals_plain": false,
+      "stable_ids_equal_plain": true,
+      "native_preprocess_parity": true,
+      "weighted_token_indices": [
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "boundary_crossings": []
+    }
+  ],
+  "image_cases": 24,
+  "limits": "One seed; blends with other artist tags held at 1. No artist-reference fidelity scoring."
+}

@@ -1,0 +1,25 @@
+[
+  {
+    "attempt": 1,
+    "latent_shape": [
+      1,
+      16,
+      96,
+      96
+    ],
+    "result": "IndexError: tuple index out of range in Cosmos prepare_embedded_sequence; no images generated",
+    "correction": "Use the actual Anima backbone contract B,C,T,H,W, with T=1. This is a harness integration error, not model-quality evidence."
+  },
+  {
+    "attempt": 2,
+    "latent_shape": [
+      1,
+      16,
+      1,
+      96,
+      96
+    ],
+    "result": "Sampling and VAE decoding completed, but PIL conversion rejected single-frame B,T,H,W,C output after only removing B. No image written.",
+    "correction": "Explicitly extract B=1,T=1 from decoded video tensors; persist sampled latents before decoding for reproducible resume."
+  }
+]

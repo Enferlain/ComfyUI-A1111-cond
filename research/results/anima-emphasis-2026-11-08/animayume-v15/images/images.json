@@ -1,0 +1,84 @@
+{
+  "checkpoint": "D:\\ComfyUI\\models\\diffusion_models\\animayume_v15Base.safetensors",
+  "vae": "D:\\ComfyUI\\models\\vae\\qwen_image_vae.safetensors",
+  "seed": 12345,
+  "steps": 24,
+  "size": 768,
+  "cfg": 4.0,
+  "sampler": "euler",
+  "scheduler": "normal",
+  "negative_prompt": "low quality, blurry, jpeg artifacts",
+  "records": [
+    {
+      "artist": "as109",
+      "variant": "plain",
+      "prompt": "1girl, @as109, smile, garden",
+      "file": "00_as109_plain.png",
+      "seconds": 10.504418100000294
+    },
+    {
+      "artist": "as109",
+      "variant": "native_1.0",
+      "prompt": "1girl, (@as109:1.0), smile, garden",
+      "file": "01_as109_native_1.0.png",
+      "seconds": 8.109592700000576
+    },
+    {
+      "artist": "as109",
+      "variant": "native_2.0",
+      "prompt": "1girl, (@as109:2.0), smile, garden",
+      "file": "02_as109_native_2.0.png",
+      "seconds": 7.964592899999843
+    },
+    {
+      "artist": "as109",
+      "variant": "singlepass_2.0",
+      "prompt": "1girl, (@as109:2.0), smile, garden",
+      "file": "03_as109_singlepass_2.0.png",
+      "seconds": 8.045352199999797
+    },
+    {
+      "artist": "as109",
+      "variant": "singlepass_2.0_rms",
+      "prompt": "1girl, (@as109:2.0), smile, garden",
+      "file": "04_as109_singlepass_2.0_rms.png",
+      "seconds": 8.013559400000304
+    },
+    {
+      "artist": "fkey",
+      "variant": "plain",
+      "prompt": "1girl, @fkey, smile, garden",
+      "file": "05_fkey_plain.png",
+      "seconds": 8.014380200000232
+    },
+    {
+      "artist": "fkey",
+      "variant": "native_1.0",
+      "prompt": "1girl, (@fkey:1.0), smile, garden",
+      "file": "06_fkey_native_1.0.png",
+      "seconds": 7.976721500000167
+    },
+    {
+      "artist": "fkey",
+      "variant": "native_2.0",
+      "prompt": "1girl, (@fkey:2.0), smile, garden",
+      "file": "07_fkey_native_2.0.png",
+      "seconds": 8.032619799999338
+    },
+    {
+      "artist": "fkey",
+      "variant": "singlepass_2.0",
+      "prompt": "1girl, (@fkey:2.0), smile, garden",
+      "file": "08_fkey_singlepass_2.0.png",
+      "seconds": 8.15424940000048
+    },
+    {
+      "artist": "fkey",
+      "variant": "singlepass_2.0_rms",
+      "prompt": "1girl, (@fkey:2.0), smile, garden",
+      "file": "09_fkey_singlepass_2.0_rms.png",
+      "seconds": 8.182775199999924
+    }
+  ],
+  "limits": "One checkpoint and seed; diagnostic differences, not artist/style quality ranking."
+}

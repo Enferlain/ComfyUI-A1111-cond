@@ -1,14 +1,20 @@
 # A1111 Prompt Node
 
-A custom ComfyUI node that implements **A1111-style prompt handling** with proper isolation, emphasis math, scheduling, and alternation.
+A custom ComfyUI node with **A1111-style prompt syntax**, wildcard expansion,
+CLIP scheduling and alternation, and model-aware emphasis for SD1.5, SDXL and Anima.
 
 ## Installation
 
-Requires `lark` for full nested syntax support:
+Place this repository inside `ComfyUI/custom_nodes/`. From the repository directory,
+install dependencies using the Python environment that runs ComfyUI:
 
 ```bash
-pip install lark
+python -m pip install -r requirements.txt
 ```
+
+Restart ComfyUI and refresh the browser after installing or updating. Anima
+Attention mode needs ComfyUI's Cosmos attention-patch and attention-override APIs;
+older installations should use Native mode or update ComfyUI.
 
 ## Features
 
@@ -30,12 +36,53 @@ pip install lark
 
 ### Core Features
 
-- **Hard Chunking (The Sandbox)**: Tokens split into 75-token chunks with padding, preventing concept bleeding
-- **Direct Scaling (Anti-Burn)**: Uses `z * weight` instead of Comfy's interpolation, avoiding artifacts at high weights
-- **BREAK Support**: Fully isolated context windows - each BREAK segment is tokenized separately
+- **CLIP chunking**: Encodes chunks of 75 content tokens plus special tokens
+- **Direct CLIP emphasis**: Uses `z * weight` with optional mean rescaling; high weights can still produce artifacts
+- **CLIP BREAK support**: Each BREAK segment is tokenized separately before encoding; this does not guarantee isolation in the diffusion model
 - **Emphasis**: `(text:1.2)`, `(text)`, `[text]`
 - **Wildcard support**: Resolves `__wildcard__` files from `data/wildcards`, including nested wildcard chains and dynamic prompt choices inside wildcard files
 - **TIPO support**: TIPO prompt output can connect directly into the node, which shows the generated prompt it receives. Use [my fork](https://github.com/Enferlain/z-tipo-extension/tree/custom) to expand connected A1111 wildcards before the single TIPO generation pass and preserve weighting emphasis in A1111 syntax.
+
+### Encoder compatibility
+
+SD1.5 and SDXL use the CLIP chunking and direct emphasis scaling described above.
+The current SDXL schedule switches token embeddings but retains the first
+prompt's pooled conditioning vector; switching that vector remains unsupported.
+
+Static Anima prompts use ComfyUI's native Qwen encoding and retain the attention
+mask, T5 token IDs, and T5 emphasis weights required by its conditioning adapter.
+There is no T5 encoder running. Both prompt nodes offer an `anima_emphasis` option:
+
+| Mode | Behavior |
+| --- | --- |
+| `native` (default) | ComfyUI's existing Anima tokenization and conditioning weights, including fragment tokenization. Existing workflows keep this behavior. |
+| `single_pass` | Tokenize the complete prompt once, then scale the weighted T5-token conditioning vectors. Neutral `:1` syntax preserves plain conditioning. |
+| `attention` | Use single-pass tokenization, keep conditioning vectors unscaled, and bias cross-attention toward weighted tokens after key normalization. |
+
+These choices apply only to Anima; keep `native` for SD1.5/SDXL. Attention mode
+travels with conditioning, so no extra model input is needed, and positive and
+negative prompts can choose modes independently. Attention mode requires finite,
+strictly positive weights; use native/single-pass for zero or negative weights.
+Single-pass and attention modes do not support textual-inversion embeddings.
+Tokens spanning differently weighted text use the average non-whitespace character
+weight; special tokens remain neutral. Attention requires a current ComfyUI with
+Cosmos attention patches and attention-override support.
+
+The same number means different operations across modes. Attention can be subtler
+and may produce fewer signature-like artifacts for some artist tags; it is not a
+guarantee of watermark suppression or equal style strength. See the
+[five-seed investigation](research/SILVERMOON_MULTISEED_FINDINGS.md).
+
+Anima `BREAK` and normalization produce explicit errors. The positive node also
+rejects scheduling/alternation; the negative node keeps its existing first-step
+fallback instead of applying a schedule. Separately encoding fragments before the adapter
+does not establish end-to-end isolation. The current scheduling hook cannot
+safely switch Anima's token-dependent conditioning.
+The live token counter still estimates CLIP chunks; it does not report Anima lengths.
+
+Encoder/model policy lives in the [`encoding` package](encoding/README.md), shared
+by both prompt nodes. Its CLIP and Anima implementations declare their supported
+operations; unknown token streams are rejected instead of treated as CLIP.
 
 ### Token Counter
 
@@ -48,7 +95,7 @@ The node displays a **live token count** in the header, showing tokens per 77-to
 - Each number shows tokens in that sequence (max 75 usable per sequence)
 - BREAK creates new sequences: `dog, cat BREAK bird` → `6/75 | 1/75`
 - Updates in real-time as you type
-- Uses ComfyUI's native tokenizer for accurate counts
+- Estimates CLIP token chunks; it does not measure the connected Anima encoder's sequence length
 - Clickable for breakdown and input ids
 
 **Warning Colors:**
@@ -68,7 +115,7 @@ The node displays a **live token count** in the header, showing tokens per 77-to
 The node includes [**A1111-style tag autocomplete**](https://github.com/DominikDoom/a1111-sd-webui-tagcomplete) functionality:
 
 - **Trigger**: Start typing any tag (2+ characters)
-- **Database**: Uses `danbooru.csv` by default (~140k tags), with additional Danbooru/E621 databases bundled.
+- **Database**: Uses `danbooru_e621_merged_2026-03-01_pt20-ia-dd-ed-spc.csv` by default, with additional Danbooru/E621 databases bundled. See [database configuration](data/tags/README.md).
 - **Search**: Matches tag names and aliases
 - **Navigation**: Use ↑/↓ arrows, Tab/Enter to select, Escape to close
 - **Color coding**: Tags are colored by type (general, artist, character, etc.)
@@ -113,7 +160,7 @@ The node supports **A1111-style wildcard files** stored in `data/wildcards/`.
 
 **Bundled tag databases:**
 
-- `danbooru.csv` - Default Danbooru database (~140k tags)
+- `danbooru.csv` - Alternative Danbooru database
 - `e621.csv` - E621 database (furry-focused)
 - `danbooru_e621_merged_*.csv` - Larger merged Danbooru/E621 databases
 - `extra-quality-tags.csv` - Quality and style tags (auto-loaded)
@@ -126,7 +173,7 @@ Open browser console and use:
 - `window.A1111Autocomplete.resetFrequency()` - Clear usage data
 - `window.A1111Autocomplete.exportFrequency()` - Backup your data
 
-### Scheduling
+### Scheduling (positive CLIP prompts)
 
 | Syntax          | Meaning                           | Auto-detects? |
 | --------------- | --------------------------------- | ------------- |
@@ -192,17 +239,19 @@ This alternates until 60%, then switches to just "as109".
 
 - **SDXL**: Dual CLIP (clip_l + clip_g) with independent weight scaling
 - **SD1.5**: Full support
+- **Anima**: Static prompts with Native, Single-pass, or Attention emphasis; see [encoder compatibility](#encoder-compatibility) for limits
 
 ### What is Normalization?
 
-This node **always** uses A1111-style "Direct Scaling" (multiplication) instead of ComfyUI's standard interpolation. This is what provides the core "A1111 look" and prevents the default ComfyUI color burn.
+For SD1.5/SDXL, emphasis directly multiplies conditioning vectors. Anima uses the
+selected `anima_emphasis` mode instead. Normalization is unsupported for Anima.
 
 The `normalization` toggle specifically controls A1111's **Mean Rescaling** (Norm vs No Norm):
 
 **When `normalization` is enabled (True):**
 
-- **Match A1111 "Norm"**: Rescales the final conditioning so its mathematical "energy" (mean) matches the original.
-- **Effect**: Prevents saturation shifts at very high weights.
+- **Mean rescaling**: Rescales the final conditioning to match the original arithmetic mean, provided the weighted mean is not near zero. This is not RMS/energy normalization.
+- **Effect**: Changes overall conditioning scale and may affect saturation; it does not guarantee artifact-free high weights.
 - **Commonly used with**: **SD1.5** and models sensitive to high prompt energy.
 
 **When `normalization` is disabled (False - Default):**
@@ -232,6 +281,7 @@ This pack provides **two nodes**:
 | text          | STRING | Yes      | Prompt with A1111 syntax                         |
 | normalization | BOOL   | No       | EmphasisOriginal/EmphasisOriginalNoNorm toggle   |
 | debug         | BOOL   | No       | Show detailed schedule information               |
+| anima_emphasis | COMBO | No       | Anima only: `native` (default), `single_pass`, or `attention` |
 
 #### Outputs
 
@@ -249,7 +299,7 @@ This pack provides **two nodes**:
 
 #### Inputs
 
-Same as positive, but **without MODEL input**.
+The same visible inputs as the positive node. Neither node requires a MODEL input.
 
 #### Outputs
 
@@ -261,7 +311,7 @@ Same as positive, but **without MODEL input**.
 
 ### Workflow
 
-The node works with any standard ComfyUI workflow:
+Use these nodes in supported SD1.5, SDXL and Anima workflows:
 
 ```text
         ┌─────────────────────────────┐
@@ -341,7 +391,8 @@ The node uses ComfyUI's `TransformerOptionsHook` system to swap conditioning per
 
 ### Step Parameter Behavior
 
-The node's `INPUT_TYPES` exposes only `clip`, `text`, `normalization`, and `debug`. Step-based syntax and timing are managed as follows:
+The visible inputs are `clip`, `text`, `normalization`, `debug`, and
+`anima_emphasis`. For supported CLIP encoders, scheduling is managed as follows:
 
 1. **Auto-detection**: The node automatically detects the total step count from the connected sampler/scheduler downstream.
 2. **Step-based syntax**: Syntax like `[thing:10]` (using integers) is relative to the detected count. The node scales these points automatically if the sampler step count changes during sampling to ensure consistent timing.
@@ -357,6 +408,8 @@ The node's `INPUT_TYPES` exposes only `clip`, `text`, `normalization`, and `debu
    - A1111 applies conditioning at the CFGDenoiser level (before model call)
    - This node applies conditioning through ComfyUI's hook system during sampling
 
+4. **Schedule indexing**: A known step-index mapping issue can repeat a scheduled entry and skip the final one. Exact per-step timing remains unqualified; see the [retained schedule probe](research/ANIMA_EMPHASIS_FINDINGS.md).
+
 Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control exactly when alternation stops.
 
 ---
@@ -364,12 +417,31 @@ Use the **scheduled alternation** syntax (`[a|b::0.6]`) if you need to control e
 ## Performance
 
 - **Shared Wildcard Catalog**: Wildcard paths are scanned once during startup and reused by autocomplete and runtime expansion.
-- **Efficient encoding**: Unique prompts are encoded only once and cached using composite keys (CLIP + text + normalization).
+- **Efficient encoding**: Encodings are cached using the encoder instance, text, normalization, and Anima emphasis mode.
 - **GPU Pre-Allocation**: All embeddings are pre-moved to the GPU (`intermediate_device`) during encoding to eliminate device-transfer latency during the sampling loop.
 - **Shared Hook Caching**: The step-swapping hook uses a structural result cache that persists when the hook is cloned, avoiding repeated conditioning tensor construction across sampling calls.
 - **Optimized Padding**: Tensors are padded only to the lengths used within the current generation, preventing global cache bloat.
 - **Direct Memory Swapping**: If prompts have identical sequence lengths, the hook uses a zero-math "fast-path" to swap embeddings instantly.
 - **Batch Processing**: Multiple BREAK segments are batched into a single encoding pass.
+
+## Development and research
+
+Model-specific behavior lives in [`encoding/`](encoding/README.md). The
+[`research/`](research/README.md) directory contains reproducible experiments and
+findings; generated images and tensors remain local and are ignored by Git.
+Older design notes are preserved in [`docs/archive/`](docs/archive/README.md).
+Current work is tracked with Beads (`bd ready`, `bd list --status=open`).
+
+Run Python test files separately to isolate their ComfyUI mocks:
+
+```bash
+python -m unittest discover -s tests -p test_anima_modes.py
+node --test tests/test_autocomplete_lifecycle.cjs
+```
+
+Run the other `tests/test_*.py` files individually in ComfyUI's Python environment.
+Live model validation is available via `python -X utf8 research/verify_anima_modes.py`;
+its model paths are local defaults that may need adjusting.
 
 ---
 

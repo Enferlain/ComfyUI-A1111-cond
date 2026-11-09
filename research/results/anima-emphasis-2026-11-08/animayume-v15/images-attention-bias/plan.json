@@ -1,0 +1,11 @@
+{
+  "bundle_sha256": "d84a930986c13a26ba4774f41cf9aeffc37d262c5784f313e7cfc96470f8eb72",
+  "seed": 12345,
+  "steps": 24,
+  "size": 768,
+  "cfg": 4.0,
+  "vae": "D:\\ComfyUI\\models\\vae\\qwen_image_vae.safetensors",
+  "sampler": "euler",
+  "scheduler": "normal",
+  "attention_bias_only": true
+}

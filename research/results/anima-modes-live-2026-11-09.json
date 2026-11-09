@@ -1,0 +1,62 @@
+{
+  "checkpoint": "silvermoonmixAnima_v23.safetensors",
+  "size": 256,
+  "steps": 2,
+  "seed": 12345,
+  "checks": [
+    {
+      "check": "native default parity",
+      "passed": true
+    },
+    {
+      "check": "singlepass research parity",
+      "passed": true
+    },
+    {
+      "check": "single_pass neutral identity",
+      "passed": true
+    },
+    {
+      "check": "attention neutral identity",
+      "passed": true
+    },
+    {
+      "check": "attention carries scoped hook and neutral adapter weights",
+      "passed": true
+    },
+    {
+      "check": "production attention sampling finite",
+      "passed": true
+    },
+    {
+      "diagnostic": "default backend vs research",
+      "backend": "attention_pytorch",
+      "relative_l2": 0.028728079050779343
+    },
+    {
+      "check": "matched-backend production vs research sampling parity",
+      "passed": true,
+      "relative_l2": 0.0
+    },
+    {
+      "check": "attention changes output",
+      "passed": true
+    },
+    {
+      "check": "weighted negative attention sampling finite",
+      "passed": true
+    },
+    {
+      "check": "singlepass sampling finite",
+      "passed": true
+    },
+    {
+      "check": "native sampling unchanged after attention",
+      "passed": true
+    },
+    {
+      "check": "model attention objects unchanged",
+      "passed": true
+    }
+  ]
+}

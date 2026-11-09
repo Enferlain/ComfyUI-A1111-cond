@@ -1,0 +1,4 @@
+# Generated images and tensor intermediates stay local.
+# Commit small JSON reports and executed-source snapshots for provenance.
+*.pt
+*.png

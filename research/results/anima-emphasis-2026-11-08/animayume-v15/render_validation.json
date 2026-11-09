@@ -1,0 +1,29 @@
+{
+  "bundle_sha256": "d84a930986c13a26ba4774f41cf9aeffc37d262c5784f313e7cfc96470f8eb72",
+  "tokenization_sha256": "9905f6ec8cb877133d50a9ee3be61d63523d97dd2b79f41d0dd3ebbb3aa83b43",
+  "legacy_attention_weight_binding": [
+    {
+      "artist": "as109",
+      "weighted_conditioning_equal": true
+    },
+    {
+      "artist": "fkey",
+      "weighted_conditioning_equal": true
+    }
+  ],
+  "vae_process_output_minus_one_zero_one": [
+    0.0,
+    0.5,
+    1.0
+  ],
+  "decoded_shape": [
+    1,
+    1,
+    768,
+    768,
+    3
+  ],
+  "decoded_min": 0.0,
+  "decoded_max": 1.0,
+  "saved_png_matches_redecoded_latent": true
+}

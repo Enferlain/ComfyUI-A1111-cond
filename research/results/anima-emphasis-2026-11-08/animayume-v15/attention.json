@@ -1,0 +1,21 @@
+{
+  "checkpoint": "D:\\ComfyUI\\models\\diffusion_models\\animayume_v15Base.safetensors",
+  "block": "net.blocks.0.cross_attn.",
+  "dtype": "float32",
+  "device": "cuda:1",
+  "heads": 16,
+  "head_dim": 128,
+  "weighted_token_indices": [
+    3,
+    4,
+    5,
+    6
+  ],
+  "key_relative_l2": 9.357593808090314e-05,
+  "value_weighting_relative_error": 0.0,
+  "attention_probability_max_delta_native": 1.0593794286251068e-06,
+  "native_artist_attention_mass_ratio_mean": 1.000012993812561,
+  "log_bias_artist_attention_mass_ratio_mean": 1.9827977418899536,
+  "log_bias_artist_attention_mass_ratio_min": 1.968288779258728,
+  "limits": "Actual learned first-block projections with synthetic image queries; not a full denoising/style quality measurement. Log-bias is a mathematical candidate, not production behavior."
+}

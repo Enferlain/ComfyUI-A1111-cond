@@ -1,0 +1,174 @@
+{
+  "records": [
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "plain",
+      "rmse_vs_plain": 0.0,
+      "rmse_vs_native_1": 0.11560086160898209,
+      "sha256": "8fbbd741e72ad9cb52c8f4ed63b0f3c503a6d221c8a50e4757de41ef878ad238"
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "native_1",
+      "rmse_vs_plain": 0.11560086160898209,
+      "rmse_vs_native_1": 0.0,
+      "sha256": "d670d28aea5ab0e6658d3e6ccacc804ff83fe490d638e87eafcebfbfc31bcc57"
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "native_2",
+      "rmse_vs_plain": 0.19622594118118286,
+      "rmse_vs_native_1": 0.1965813785791397,
+      "sha256": "72a1d4a76a0c4a0da120cc203fd221bf36317e1e96c1918e6e91af6cfd794a61"
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "native_3",
+      "rmse_vs_plain": 0.2473592609167099,
+      "rmse_vs_native_1": 0.25085902214050293,
+      "sha256": "4fccc8283f2cfa0556a6779ddad55b27af0b5dcec4fc55ea709bc54fb7fec04b"
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "singlepass_2",
+      "rmse_vs_plain": 0.2302829772233963,
+      "rmse_vs_native_1": 0.23622708022594452,
+      "sha256": "e3068ed0fff12df79b0ee3bd41c77858efd5829833072d10f023a1b12518c766"
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "singlepass_3",
+      "rmse_vs_plain": 0.24822942912578583,
+      "rmse_vs_native_1": 0.24959295988082886,
+      "sha256": "0fe72102631f9fe8332eea9c2448bb47c46dc5ae0ae9af25c66be32426178662"
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "attention_bias_2",
+      "rmse_vs_plain": 0.19537903368473053,
+      "rmse_vs_native_1": 0.20726142823696136,
+      "sha256": "0e98f12db980ad4ddc3ffd90307431b3a8f955abf5fc624996a9f73c356d7e1b"
+    },
+    {
+      "artist": "cutesexyrobutts",
+      "variant": "attention_bias_3",
+      "rmse_vs_plain": 0.24192482233047485,
+      "rmse_vs_native_1": 0.24954606592655182,
+      "sha256": "62a67536e76661dfe2cd6dd946eb2bb73f70f802253dc956130d6560f749e697"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "plain",
+      "rmse_vs_plain": 0.0,
+      "rmse_vs_native_1": 0.17286467552185059,
+      "sha256": "8fbbd741e72ad9cb52c8f4ed63b0f3c503a6d221c8a50e4757de41ef878ad238"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "native_1",
+      "rmse_vs_plain": 0.17286467552185059,
+      "rmse_vs_native_1": 0.0,
+      "sha256": "9f96239fe2bcbb3b3db74155cc550763d40453661f88c91566254a915587ecb9"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "native_2",
+      "rmse_vs_plain": 0.20874345302581787,
+      "rmse_vs_native_1": 0.19563670456409454,
+      "sha256": "b867882b3df343528b4b0fbd299e63baa2902c35ee08065374a0944019de70d7"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "native_3",
+      "rmse_vs_plain": 0.22312016785144806,
+      "rmse_vs_native_1": 0.20385043323040009,
+      "sha256": "d3452fca97e1e7dc7657bdc16187beae044b5c1cc8c68d32294da47ef8e5aec0"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "singlepass_2",
+      "rmse_vs_plain": 0.2373129427433014,
+      "rmse_vs_native_1": 0.22556355595588684,
+      "sha256": "f508eb48e8e16f5621c9a173fbd3e7078bd12d65424dad07881a9a6595979045"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "singlepass_3",
+      "rmse_vs_plain": 0.24033738672733307,
+      "rmse_vs_native_1": 0.22231803834438324,
+      "sha256": "3b1a9ccff7c112c921d07df4dc799f32b5582bd45e10fb6dc5270f70fb89dc98"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "attention_bias_2",
+      "rmse_vs_plain": 0.18620458245277405,
+      "rmse_vs_native_1": 0.1647670418024063,
+      "sha256": "2d4dbb3be9b75e247458afbc20c4d1d351dc88c301c6368637871f3b8c5da524"
+    },
+    {
+      "artist": "quasarcake",
+      "variant": "attention_bias_3",
+      "rmse_vs_plain": 0.22434258460998535,
+      "rmse_vs_native_1": 0.20347699522972107,
+      "sha256": "ae51629173659783811ced999d38c31ee636d63f70fb0ec51cb9ee2d6e9b4f28"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "plain",
+      "rmse_vs_plain": 0.0,
+      "rmse_vs_native_1": 0.13665743172168732,
+      "sha256": "8fbbd741e72ad9cb52c8f4ed63b0f3c503a6d221c8a50e4757de41ef878ad238"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "native_1",
+      "rmse_vs_plain": 0.13665743172168732,
+      "rmse_vs_native_1": 0.0,
+      "sha256": "82ec2ee277168abf5c9c772025600bc7599a6654384d661a907511ad2ab5caf1"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "native_2",
+      "rmse_vs_plain": 0.21978552639484406,
+      "rmse_vs_native_1": 0.2282916158437729,
+      "sha256": "46745c64c3a1a30fcbde2f9ce7f61b5e0c8d023eac191cc6fcf6ec2fd133aaf7"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "native_3",
+      "rmse_vs_plain": 0.2554934620857239,
+      "rmse_vs_native_1": 0.25932565331459045,
+      "sha256": "e28b915116878ab1008abad562a8f6c7a772b529b484975e475ec8b8bb277327"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "singlepass_2",
+      "rmse_vs_plain": 0.21408000588417053,
+      "rmse_vs_native_1": 0.2276611626148224,
+      "sha256": "c48ff128c24e4c277c1e829e15aa463be3b27ad2c93fa3fc20cd82c2ad36a78a"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "singlepass_3",
+      "rmse_vs_plain": 0.2469080537557602,
+      "rmse_vs_native_1": 0.2611830532550812,
+      "sha256": "1d47cbbfbb7ce7f3693e9ec532b9bd79ec85fc9a84444b0c467326524b7021f4"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "attention_bias_2",
+      "rmse_vs_plain": 0.16647809743881226,
+      "rmse_vs_native_1": 0.19101715087890625,
+      "sha256": "1ed4530bd81da3002d9d4ac3580f9651bc2f78fd86a7ebee3752a1366dd46f21"
+    },
+    {
+      "artist": "ssambatea",
+      "variant": "attention_bias_3",
+      "rmse_vs_plain": 0.18814805150032043,
+      "rmse_vs_native_1": 0.20832544565200806,
+      "sha256": "c3aceabb5d41aa9f517ea62dd7024d06fb6310d46156b96afe1d72313229d979"
+    }
+  ],
+  "baseline_repeats_identical": true,
+  "limits": "Pixel differences measure change, not artist/style fidelity or strength calibration."
+}

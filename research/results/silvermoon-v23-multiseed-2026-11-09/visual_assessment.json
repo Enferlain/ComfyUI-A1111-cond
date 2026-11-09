@@ -1,0 +1,548 @@
+{
+  "assessor": "assistant visual inspection, no OCR or artist-reference scoring",
+  "rubric": {
+    "clear": "Visible generated lettering/signature-like text; counts per image, regardless of number of marks.",
+    "not_detected": "No signature-like text detected in full-image sheets and original-resolution top/bottom strips; not a guarantee of absence.",
+    "uncertain": "Ambiguous text-like marks; none assigned in this sample.",
+    "core_adherence": "Broad subject/blue maid kimono, grey hair, halo, food and outdoor setting; not exact checking of every prompt tag."
+  },
+  "seeds": [
+    12345,
+    12346,
+    12347,
+    12348,
+    12349
+  ],
+  "records": [
+    {
+      "seed": 12345,
+      "artist": "cutesexyrobutts",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\00_cutesexyrobutts_plain.png",
+      "sha256": "8fbbd741e72ad9cb52c8f4ed63b0f3c503a6d221c8a50e4757de41ef878ad238",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "cutesexyrobutts",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\05_cutesexyrobutts_singlepass_3.png",
+      "sha256": "0fe72102631f9fe8332eea9c2448bb47c46dc5ae0ae9af25c66be32426178662",
+      "signature_like_text": "clear",
+      "signature_locations": [
+        "top_left",
+        "bottom_right"
+      ],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "cutesexyrobutts",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\07_cutesexyrobutts_attention_bias_3.png",
+      "sha256": "62a67536e76661dfe2cd6dd946eb2bb73f70f802253dc956130d6560f749e697",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "quasarcake",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\08_quasarcake_plain.png",
+      "sha256": "8fbbd741e72ad9cb52c8f4ed63b0f3c503a6d221c8a50e4757de41ef878ad238",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "quasarcake",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\13_quasarcake_singlepass_3.png",
+      "sha256": "3b1a9ccff7c112c921d07df4dc799f32b5582bd45e10fb6dc5270f70fb89dc98",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "quasarcake",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\15_quasarcake_attention_bias_3.png",
+      "sha256": "ae51629173659783811ced999d38c31ee636d63f70fb0ec51cb9ee2d6e9b4f28",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "ssambatea",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\16_ssambatea_plain.png",
+      "sha256": "8fbbd741e72ad9cb52c8f4ed63b0f3c503a6d221c8a50e4757de41ef878ad238",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "ssambatea",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\21_ssambatea_singlepass_3.png",
+      "sha256": "1d47cbbfbb7ce7f3693e9ec532b9bd79ec85fc9a84444b0c467326524b7021f4",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12345,
+      "artist": "ssambatea",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-artists-2026-11-09\\images\\23_ssambatea_attention_bias_3.png",
+      "sha256": "c3aceabb5d41aa9f517ea62dd7024d06fb6310d46156b96afe1d72313229d979",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "cutesexyrobutts",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\00_cutesexyrobutts_plain.png",
+      "sha256": "130061197e0cb2e156a61eb358ba2e392ddd54a0c78e1a707142b5ccfa4bb30d",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "cutesexyrobutts",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\01_cutesexyrobutts_singlepass_3.png",
+      "sha256": "b397c1e0da81b4624db8c6e881c80ffb7ab154a29cbd3eb5e42ecdd95346b463",
+      "signature_like_text": "clear",
+      "signature_locations": [
+        "top_left",
+        "bottom_right"
+      ],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "cutesexyrobutts",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\02_cutesexyrobutts_attention_bias_3.png",
+      "sha256": "6d73ce63d5627294bdb2f15c1a51ce20af5dc5793aa0f896aac0344dc7688045",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "quasarcake",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\03_quasarcake_plain.png",
+      "sha256": "130061197e0cb2e156a61eb358ba2e392ddd54a0c78e1a707142b5ccfa4bb30d",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "quasarcake",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\04_quasarcake_singlepass_3.png",
+      "sha256": "2d8fd5354769d97037b96fca35591a02fb14fab6bd0d558e4560e99a0175a61b",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "quasarcake",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\05_quasarcake_attention_bias_3.png",
+      "sha256": "c7ec2423ebab8395581221937ef11f4a0874947195719dd9e1800ba0db3022e8",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "ssambatea",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\06_ssambatea_plain.png",
+      "sha256": "130061197e0cb2e156a61eb358ba2e392ddd54a0c78e1a707142b5ccfa4bb30d",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "ssambatea",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\07_ssambatea_singlepass_3.png",
+      "sha256": "5218b7bb43aae268f1356ccd1881fe1d3faebcbaa1104f162a731b39bb7ca284",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12346,
+      "artist": "ssambatea",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12346\\08_ssambatea_attention_bias_3.png",
+      "sha256": "e287fae5dac36f54ccbb4dc0e96254f4b68d78977d7ea363134358c5963ef7de",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "cutesexyrobutts",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\00_cutesexyrobutts_plain.png",
+      "sha256": "d30596545e3f76cf37ef2fb4e4f5344022a54d9c7c3fa3c76319e9e807876199",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "cutesexyrobutts",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\01_cutesexyrobutts_singlepass_3.png",
+      "sha256": "2b9f658b390e3b2223f6da1dbc416e2d409dac6ae0db0646ea73de729f6bdbdc",
+      "signature_like_text": "clear",
+      "signature_locations": [
+        "bottom_right"
+      ],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "cutesexyrobutts",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\02_cutesexyrobutts_attention_bias_3.png",
+      "sha256": "d4305c3f92ff6ca2c2aff8424647a5ddd36f5f7dd39d92937610f8531547e8cd",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "quasarcake",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\03_quasarcake_plain.png",
+      "sha256": "d30596545e3f76cf37ef2fb4e4f5344022a54d9c7c3fa3c76319e9e807876199",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "quasarcake",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\04_quasarcake_singlepass_3.png",
+      "sha256": "95bc153445fe85851687f76fbd5abfe8a40d86928a245189540de3ace841e84b",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "quasarcake",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\05_quasarcake_attention_bias_3.png",
+      "sha256": "eafd1b55b2536d7396205584e2734a547346d45e17869b38df7098d42a602109",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "ssambatea",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\06_ssambatea_plain.png",
+      "sha256": "d30596545e3f76cf37ef2fb4e4f5344022a54d9c7c3fa3c76319e9e807876199",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "ssambatea",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\07_ssambatea_singlepass_3.png",
+      "sha256": "c3ea00127147754232fad468f087a39ace9830e4a86edec5de2065202e228334",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12347,
+      "artist": "ssambatea",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12347\\08_ssambatea_attention_bias_3.png",
+      "sha256": "1b82a288059fe5a89eb652755a30136835d648c46f6477f5906f7c26d981e019",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "cutesexyrobutts",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\00_cutesexyrobutts_plain.png",
+      "sha256": "9e5b7fc1d270ac642207b81cd9792afa121b87641f76f5ce32a3f1aff8ebe81f",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "cutesexyrobutts",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\01_cutesexyrobutts_singlepass_3.png",
+      "sha256": "d02e515239ee9cf46ba7c18d1005312c8e42ca4437e6921811e844d663a126f2",
+      "signature_like_text": "clear",
+      "signature_locations": [
+        "top_right"
+      ],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "cutesexyrobutts",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\02_cutesexyrobutts_attention_bias_3.png",
+      "sha256": "ed3d9ae52f48243d96085c2a4cd28ea992b8a1eb1afee4a5c45320a9b18f0afe",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "quasarcake",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\03_quasarcake_plain.png",
+      "sha256": "9e5b7fc1d270ac642207b81cd9792afa121b87641f76f5ce32a3f1aff8ebe81f",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "quasarcake",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\04_quasarcake_singlepass_3.png",
+      "sha256": "9e2473f72743f021d3c8da67efa75da95981c5d427aec1cc38f222ece37463bf",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "quasarcake",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\05_quasarcake_attention_bias_3.png",
+      "sha256": "d6dca14e9fde9d1407214dd26e479a7286b96e6f62080385bdb6fc6c5cd437d8",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "ssambatea",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\06_ssambatea_plain.png",
+      "sha256": "9e5b7fc1d270ac642207b81cd9792afa121b87641f76f5ce32a3f1aff8ebe81f",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "ssambatea",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\07_ssambatea_singlepass_3.png",
+      "sha256": "73639e87b061b81bef903e6431334bb3a0466ab79c7877a62e31e7f0c9916b7a",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12348,
+      "artist": "ssambatea",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12348\\08_ssambatea_attention_bias_3.png",
+      "sha256": "ba421e37c73e2e840b4d8bddbb86bb295e93a640859765f045cd1af5fe94d244",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "cutesexyrobutts",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\00_cutesexyrobutts_plain.png",
+      "sha256": "ade87378225482c15e9b237088327fd797a054b3b32dd61f20955eea5353f987",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "cutesexyrobutts",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\01_cutesexyrobutts_singlepass_3.png",
+      "sha256": "dec629327778101a7c500e566541c479d5a8e0d505b0842d1c4fe54f5e82dfa9",
+      "signature_like_text": "clear",
+      "signature_locations": [
+        "top_left",
+        "bottom_right"
+      ],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "cutesexyrobutts",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\02_cutesexyrobutts_attention_bias_3.png",
+      "sha256": "a6bf3dd57050254a6db8059caa3a34ef3a6e50b97eb1d6addbad1ee0a44fa5b1",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "quasarcake",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\03_quasarcake_plain.png",
+      "sha256": "ade87378225482c15e9b237088327fd797a054b3b32dd61f20955eea5353f987",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "quasarcake",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\04_quasarcake_singlepass_3.png",
+      "sha256": "e83807006400a1850d146c0a356d482da51b5ea07aa03ef3d891f7630a1ab7f7",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "quasarcake",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\05_quasarcake_attention_bias_3.png",
+      "sha256": "a358553096a28ad4a5a2a202b1018bf5ce8b82a9fc86aec429a1bd0e4792437e",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "ssambatea",
+      "variant": "plain",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\06_ssambatea_plain.png",
+      "sha256": "ade87378225482c15e9b237088327fd797a054b3b32dd61f20955eea5353f987",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": []
+    },
+    {
+      "seed": 12349,
+      "artist": "ssambatea",
+      "variant": "singlepass_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\07_ssambatea_singlepass_3.png",
+      "sha256": "37319545a8b00a0935415b6c30264322469f8d852929a79a94d0bbd19dcd6f17",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": [
+        "Suspected extra hand near mouth in both weighted methods; inspect anatomy before selecting."
+      ]
+    },
+    {
+      "seed": 12349,
+      "artist": "ssambatea",
+      "variant": "attention_bias_3",
+      "file": "research\\results\\silvermoon-v23-multiseed-2026-11-09\\12349\\08_ssambatea_attention_bias_3.png",
+      "sha256": "8a6888c1da4c64fd4c512bc3d1eed5a402cfadc1467078b74895a683c80e34e5",
+      "signature_like_text": "not_detected",
+      "signature_locations": [],
+      "core_subject_outfit_halo_food_scene_retained": true,
+      "notes": [
+        "Suspected extra hand near mouth in both weighted methods; inspect anatomy before selecting."
+      ]
+    }
+  ],
+  "counts": {
+    "cutesexyrobutts": {
+      "plain": 0,
+      "singlepass_3": 5,
+      "attention_bias_3": 0
+    },
+    "quasarcake": {
+      "plain": 0,
+      "singlepass_3": 0,
+      "attention_bias_3": 0
+    },
+    "ssambatea": {
+      "plain": 0,
+      "singlepass_3": 0,
+      "attention_bias_3": 0
+    }
+  },
+  "limits": "Five seeds per artist/mode. Plain column shared across artist sheets: five unique plain images, not fifteen. No matched-style-strength comparison; attention bias may trade intensity for fewer signatures. No native multi-seed arm."
+}
